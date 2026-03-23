@@ -4,8 +4,8 @@ $navItems = [
         'id' => 'dashboard',
         'title' => 'Дашборд',
         'icon' => 'dashboard',
-        'heading' => 'Обзор финансов',
-        'slogan' => 'Ваш бизнес под четким контролем',
+        'heading' => 'Проектор финансовых планов малого бизнеса',
+        'slogan' => 'Бюджеты, прогнозы выручки и сценарии развития на квартал или год вперед.',
     ],
     [
         'id' => 'articles',
@@ -19,7 +19,7 @@ $navItems = [
         'title' => 'Сценарии прогноза',
         'icon' => 'scenarios',
         'heading' => 'Сценарный анализ',
-        'slogan' => 'Сравнивайте модели роста и управляйте рисками',
+        'slogan' => 'CRUD для сценариев бюджета и прогнозов выручки в одном интерфейсе',
     ],
     [
         'id' => 'reports',
@@ -35,6 +35,12 @@ $navItems = [
         'heading' => 'Параметры панели',
         'slogan' => 'Персонализируйте интерфейс и режим оповещений',
     ],
+];
+
+$productOverview = [
+    'title' => 'Проектор финансовых планов малого бизнеса',
+    'description' => 'Удобный финансовый проектор для малых предприятий, позволяющий составлять бюджеты и прогнозы выручки на квартал или год вперед. Все сценарии бюджетов сохраняются и поддерживают операции CRUD.',
+    'highlights' => ['Квартальные и годовые прогнозы', 'Сценарии с операциями CRUD', 'Контроль бюджета и выручки'],
 ];
 
 $dashboardStats = [
@@ -106,7 +112,7 @@ $chartData = [
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ФинГоризонт — Панель управления</title>
+    <title>ФинГоризонт — Проектор финансовых планов</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;700&family=Roboto+Mono&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
@@ -117,11 +123,17 @@ $chartData = [
     <div class="app-shell">
         <aside class="sidebar">
             <div class="logo-container">
-                <div class="logo-circle" aria-hidden="true"></div>
+                <img class="brand-logo" src="img/logo.png" alt="Логотип ФинГоризонт">
                 <div>
                     <div class="brand-name">ФинГоризонт</div>
-                    <div class="brand-subtitle">Finance cockpit</div>
+                    <div class="brand-subtitle">Проектор финансовых планов</div>
                 </div>
+            </div>
+
+            <div class="sidebar-product-card">
+                <p class="sidebar-product-card__eyebrow">Малый бизнес</p>
+                <strong><?= htmlspecialchars($productOverview['title'], ENT_QUOTES, 'UTF-8'); ?></strong>
+                <span><?= htmlspecialchars($productOverview['description'], ENT_QUOTES, 'UTF-8'); ?></span>
             </div>
 
             <nav class="sidebar-nav" aria-label="Основная навигация">
@@ -165,6 +177,22 @@ $chartData = [
                     <strong>Иван Иванов</strong>
                 </div>
             </header>
+
+            <section class="hero-card">
+                <div class="hero-card__content">
+                    <p class="hero-card__eyebrow">Описание продукта</p>
+                    <h2><?= htmlspecialchars($productOverview['title'], ENT_QUOTES, 'UTF-8'); ?></h2>
+                    <p><?= htmlspecialchars($productOverview['description'], ENT_QUOTES, 'UTF-8'); ?></p>
+                    <ul class="hero-card__list">
+                        <?php foreach ($productOverview['highlights'] as $highlight): ?>
+                            <li><?= htmlspecialchars($highlight, ENT_QUOTES, 'UTF-8'); ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+                <div class="hero-card__media">
+                    <img src="img/logo.png" alt="Логотип продукта ФинГоризонт">
+                </div>
+            </section>
 
             <section class="content-section is-active" id="section-dashboard" data-section="dashboard">
                 <div class="dashboard-grid">
