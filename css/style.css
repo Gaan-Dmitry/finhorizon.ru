@@ -299,6 +299,22 @@ body.compact-mode .card {
 
 .content-block--chart {
     min-height: 420px;
+    display: grid;
+    gap: 18px;
+}
+
+.chart-surface {
+    position: relative;
+    min-height: 320px;
+    height: clamp(320px, 42vh, 420px);
+    width: 100%;
+    overflow: hidden;
+}
+
+.chart-surface canvas {
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
 }
 
 .scenario-switcher {
