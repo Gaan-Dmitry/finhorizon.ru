@@ -19,6 +19,7 @@ const sections = Array.from(document.querySelectorAll('.content-section'));
 const scenarioButtons = Array.from(document.querySelectorAll('[data-scenario]'));
 const scenarioApplyButtons = Array.from(document.querySelectorAll('[data-scenario-apply]'));
 const scenarioCards = Array.from(document.querySelectorAll('[data-scenario-card]'));
+const scenarioNames = config.scenarioNames || {};
 const budgetTable = document.getElementById('budgetTable');
 const highlightBudgetButton = document.getElementById('highlightBudgetButton');
 const settingsForm = document.getElementById('settingsForm');
@@ -105,6 +106,7 @@ function bindSettingsForm() {
         state.settings.compactMode = formData.get('compactMode') === 'on';
         state.settings.notifications = formData.get('notifications') === 'on';
 
+        updateChart(state.activeScenario);
         persistSettings();
         applySettings();
         settingsHint.textContent = 'Настройки сохранены локально и применены ко всем разделам.';
@@ -190,15 +192,28 @@ function updateChart(scenarioId) {
     }
 
     chart.data.datasets[1].data = scenarioToDataset(scenarioId);
-    chart.data.datasets[1].label = `Сценарий: ${scenarioId}`;
+    chart.data.datasets[1].label = `Сценарий: ${scenarioNames[scenarioId] || scenarioId}`;
     chart.data.datasets[1].borderColor = state.settings.accent;
     chart.data.datasets[1].backgroundColor = `${state.settings.accent}22`;
     chart.update();
 }
 
 function scenarioToDataset(scenarioId) {
+    const labels = config.chart?.labels || [];
+    const actualValues = config.chart?.actual || [];
     const values = config.chart?.scenarios?.[scenarioId] || [];
-    return [null, null, ...values];
+    const firstProjectedIndex = actualValues.findIndex((value) => value === null || value === undefined);
+    const startIndex = firstProjectedIndex === -1 ? Math.max(labels.length - values.length, 0) : Math.max(firstProjectedIndex - 1, 0);
+    const dataset = new Array(labels.length).fill(null);
+
+    values.forEach((value, index) => {
+        const targetIndex = startIndex + index;
+        if (targetIndex < dataset.length) {
+            dataset[targetIndex] = value;
+        }
+    });
+
+    return dataset;
 }
 
 function restoreSettings() {
