@@ -243,6 +243,8 @@ h3 {
     position: sticky;
     top: 18px;
     height: calc(100vh - 36px);
+    overflow-y: auto;
+    scrollbar-gutter: stable;
 }
 
 .logo-container {
@@ -303,6 +305,8 @@ h3 {
     list-style: none;
     display: grid;
     gap: 10px;
+    margin: 0;
+    padding: 0;
 }
 
 .nav-button {

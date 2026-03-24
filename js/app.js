@@ -20,13 +20,15 @@ const scenarioButtons = Array.from(document.querySelectorAll('[data-scenario]'))
 const scenarioApplyButtons = Array.from(document.querySelectorAll('[data-scenario-apply]'));
 const scenarioCards = Array.from(document.querySelectorAll('[data-scenario-card]'));
 const scenarioNames = config.scenarioNames || {};
+const chartLabels = Array.isArray(config.chart?.labels) ? config.chart.labels : [];
+const actualValues = Array.isArray(config.chart?.actual) ? [...config.chart.actual] : [];
 const budgetTable = document.getElementById('budgetTable');
 const highlightBudgetButton = document.getElementById('highlightBudgetButton');
 const settingsForm = document.getElementById('settingsForm');
 const resetSettingsButton = document.getElementById('resetSettingsButton');
 const settingsHint = document.getElementById('settingsHint');
 const sidebar = document.getElementById('sidebar');
-const sidebarToggleButton = document.getElementById('sidebarToggleButton');
+const sidebarToggleButtons = Array.from(document.querySelectorAll('[data-sidebar-toggle]'));
 const operationForm = document.getElementById('operationForm');
 const operationFormResult = document.getElementById('operationFormResult');
 const operationSubmitButton = document.getElementById('operationSubmitButton');
@@ -60,7 +62,7 @@ function bindNavigation() {
             pageSlogan.textContent = button.dataset.slogan || '';
 
             root.classList.add('sidebar-collapsed');
-            sidebarToggleButton?.setAttribute('aria-expanded', 'false');
+            sidebarToggleButtons.forEach((button) => button.setAttribute('aria-expanded', 'false'));
         });
     });
 }
@@ -84,14 +86,18 @@ function bindBudgetTools() {
 }
 
 function bindSidebarToggle() {
-    if (!sidebar || !sidebarToggleButton) {
+    if (!sidebar || sidebarToggleButtons.length === 0) {
         return;
     }
 
-    sidebarToggleButton.addEventListener('click', () => {
-        const isCollapsed = root.classList.toggle('sidebar-collapsed');
-        sidebarToggleButton.setAttribute('aria-expanded', String(!isCollapsed));
-        sidebarToggleButton.setAttribute('aria-label', isCollapsed ? 'Развернуть меню' : 'Свернуть меню');
+    sidebarToggleButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+            const isCollapsed = root.classList.toggle('sidebar-collapsed');
+            sidebarToggleButtons.forEach((toggle) => {
+                toggle.setAttribute('aria-expanded', String(!isCollapsed));
+                toggle.setAttribute('aria-label', isCollapsed ? 'Развернуть меню' : 'Свернуть меню');
+            });
+        });
     });
 }
 
@@ -144,6 +150,7 @@ function bindOperations() {
         operationForm.reset();
         operationForm.elements.editIndex.value = '';
         operationSubmitButton.textContent = 'Добавить операцию';
+        refreshDynamicData();
     });
 
     operationsTableBody.querySelectorAll('tr').forEach((row, index) => {
@@ -175,6 +182,8 @@ function bindOperations() {
         operationSubmitButton.textContent = 'Сохранить изменения';
         operationFormResult.textContent = 'Режим редактирования операции.';
     });
+
+    refreshDynamicData();
 }
 
 function escapeHtml(value) {
@@ -260,7 +269,7 @@ function createChart() {
             datasets: [
                 {
                     label: 'Фактическая выручка',
-                    data: config.chart?.actual || [],
+                    data: actualValues,
                     borderColor: '#2C3E50',
                     backgroundColor: '#2C3E5022',
                     pointRadius: 4,
@@ -350,7 +359,7 @@ function updateChart(scenarioId) {
 }
 
 function scenarioToDataset(scenarioId) {
-    const labels = config.chart?.labels || [];
+    const labels = chartLabels;
     const values = config.chart?.scenarios?.[scenarioId] || [];
     const anchorIndex = actualValues.reduce((lastIndex, value, index) => (value !== null && value !== undefined ? index : lastIndex), -1);
 
@@ -385,6 +394,163 @@ function scenarioToDataset(scenarioId) {
     });
 
     return dataset;
+}
+
+function refreshDynamicData() {
+    recalculateActualSeriesFromOperations();
+    recalculateBudgetFromOperations();
+    updateChart(state.activeScenario);
+}
+
+function recalculateActualSeriesFromOperations() {
+    if (chartLabels.length === 0 || !operationsTableBody) {
+        return;
+    }
+
+    const now = new Date();
+    const monthKeys = [];
+    for (let i = 3; i >= 0; i -= 1) {
+        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        monthKeys.push(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`);
+    }
+
+    const inflowByMonth = monthKeys.reduce((acc, key) => ({ ...acc, [key]: 0 }), {});
+    operationsTableBody.querySelectorAll('tr').forEach((row) => {
+        const cells = row.querySelectorAll('td');
+        if (cells.length < 4) {
+            return;
+        }
+
+        const direction = row.dataset.direction || 'inflow';
+        if (direction !== 'inflow') {
+            return;
+        }
+
+        const parsedDate = parseOperationDate(cells[2].textContent || '');
+        if (!parsedDate) {
+            return;
+        }
+
+        const key = `${parsedDate.getFullYear()}-${String(parsedDate.getMonth() + 1).padStart(2, '0')}-01`;
+        if (!(key in inflowByMonth)) {
+            return;
+        }
+
+        const amount = parseAmount(cells[3].textContent || '');
+        inflowByMonth[key] += Math.max(amount, 0);
+    });
+
+    monthKeys.forEach((key, index) => {
+        actualValues[index] = inflowByMonth[key];
+    });
+    for (let i = monthKeys.length; i < chartLabels.length; i += 1) {
+        actualValues[i] = null;
+    }
+
+    if (chart?.data?.datasets?.[0]) {
+        chart.data.datasets[0].data = [...actualValues];
+    }
+}
+
+function recalculateBudgetFromOperations() {
+    if (!budgetTable || !operationsTableBody) {
+        return;
+    }
+
+    const rows = Array.from(budgetTable.querySelectorAll('tbody tr'));
+    if (rows.length === 0) {
+        return;
+    }
+
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+    const spentByCategory = {};
+
+    operationsTableBody.querySelectorAll('tr').forEach((row) => {
+        if ((row.dataset.direction || 'inflow') !== 'outflow') {
+            return;
+        }
+
+        const cells = row.querySelectorAll('td');
+        if (cells.length < 4) {
+            return;
+        }
+
+        const category = (cells[1].textContent || '').trim();
+        const parsedDate = parseOperationDate(cells[2].textContent || '');
+        if (!parsedDate || parsedDate.getFullYear() !== currentYear || parsedDate.getMonth() !== currentMonth) {
+            return;
+        }
+
+        const amount = Math.abs(parseAmount(cells[3].textContent || '0'));
+        spentByCategory[category] = (spentByCategory[category] || 0) + amount;
+    });
+
+    rows.forEach((row) => {
+        const cells = row.querySelectorAll('td');
+        if (cells.length < 4) {
+            return;
+        }
+
+        const category = (cells[0].textContent || '').trim();
+        const limit = Math.abs(parseAmount(cells[1].textContent || '0'));
+        const spent = spentByCategory[category] || 0;
+        const status = resolveBudgetStatus(limit, spent);
+
+        row.dataset.status = status;
+        cells[2].textContent = formatMoney(spent);
+        cells[3].innerHTML = `<span class="status-pill ${budgetStatusClass(status)}">${status}</span>`;
+    });
+}
+
+function resolveBudgetStatus(limit, spent) {
+    if (limit <= 0) {
+        return 'Нет лимита';
+    }
+    const ratio = spent / limit;
+    if (ratio >= 1) {
+        return 'Перерасход';
+    }
+    if (ratio >= 0.85) {
+        return 'Риск перерасхода';
+    }
+    return 'В лимите';
+}
+
+function budgetStatusClass(status) {
+    if (status === 'Перерасход' || status === 'Просрочен' || status === 'Нужна реакция') {
+        return 'status-pill--danger';
+    }
+    if (status === 'Риск перерасхода' || status === 'В работе') {
+        return 'status-pill--warning';
+    }
+    return 'status-pill--success';
+}
+
+function parseAmount(value) {
+    const normalized = String(value).replace(/\s+/g, '').replace(',', '.');
+    return Number(normalized.replace(/[^\d.-]/g, '')) || 0;
+}
+
+function parseOperationDate(value) {
+    const raw = String(value).trim();
+    if (!raw) {
+        return null;
+    }
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+        const [year, month, day] = raw.split('-').map(Number);
+        return new Date(year, month - 1, day);
+    }
+
+    if (/^\d{2}\.\d{2}\.\d{4}$/.test(raw)) {
+        const [day, month, year] = raw.split('.').map(Number);
+        return new Date(year, month - 1, day);
+    }
+
+    const parsed = new Date(raw);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
 function restoreSettings() {
