@@ -759,6 +759,7 @@ $defaultScenario = $dashboard['scenarios'][0]['id'] ?? 'base';
         <main class="main-content">
             <header class="page-header">
                 <div>
+                    <button class="sidebar-toggle button button--secondary" type="button" id="sidebarToggleButton" aria-expanded="true" aria-controls="sidebar">Свернуть меню</button>
                     <h1 id="pageHeading">Финансовый командный центр</h1>
                     <p class="slogan" id="pageSlogan">Актуальные KPI, денежный поток и сценарии вашей компании.</p>
                 </div>

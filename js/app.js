@@ -58,6 +58,9 @@ function bindNavigation() {
 
             pageHeading.textContent = button.dataset.heading || 'Финансовая панель';
             pageSlogan.textContent = button.dataset.slogan || '';
+
+            root.classList.add('sidebar-collapsed');
+            sidebarToggleButton?.setAttribute('aria-expanded', 'false');
         });
     });
 }
@@ -348,7 +351,6 @@ function updateChart(scenarioId) {
 
 function scenarioToDataset(scenarioId) {
     const labels = config.chart?.labels || [];
-    const actualValues = config.chart?.actual || [];
     const values = config.chart?.scenarios?.[scenarioId] || [];
     const anchorIndex = actualValues.reduce((lastIndex, value, index) => (value !== null && value !== undefined ? index : lastIndex), -1);
 
