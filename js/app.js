@@ -25,14 +25,22 @@ const highlightBudgetButton = document.getElementById('highlightBudgetButton');
 const settingsForm = document.getElementById('settingsForm');
 const resetSettingsButton = document.getElementById('resetSettingsButton');
 const settingsHint = document.getElementById('settingsHint');
+const sidebar = document.getElementById('sidebar');
+const sidebarToggleButton = document.getElementById('sidebarToggleButton');
+const operationForm = document.getElementById('operationForm');
+const operationFormResult = document.getElementById('operationFormResult');
+const operationSubmitButton = document.getElementById('operationSubmitButton');
+const operationsTableBody = document.getElementById('operationsTableBody');
 
 const chart = createChart();
 restoreSettings();
 applySettings();
 bindNavigation();
+bindSidebarToggle();
 bindBudgetTools();
 bindScenarioControls();
 bindSettingsForm();
+bindOperations();
 
 function bindNavigation() {
     navButtons.forEach((button) => {
@@ -47,6 +55,9 @@ function bindNavigation() {
 
             pageHeading.textContent = button.dataset.heading || 'Финансовая панель';
             pageSlogan.textContent = button.dataset.slogan || '';
+
+            root.classList.add('sidebar-collapsed');
+            sidebarToggleButton?.setAttribute('aria-expanded', 'false');
         });
     });
 }
@@ -67,6 +78,110 @@ function bindBudgetTools() {
             settingsHint.textContent = 'Обнаружены статьи с риском перерасхода. Проверьте лимиты.';
         }
     });
+}
+
+function bindSidebarToggle() {
+    if (!sidebar || !sidebarToggleButton) {
+        return;
+    }
+
+    root.classList.add('sidebar-collapsed');
+
+    sidebarToggleButton.addEventListener('click', () => {
+        const isCollapsed = root.classList.toggle('sidebar-collapsed');
+        sidebarToggleButton.setAttribute('aria-expanded', String(!isCollapsed));
+    });
+}
+
+function bindOperations() {
+    if (!operationForm || !operationFormResult || !operationsTableBody) {
+        return;
+    }
+
+    operationForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const formData = new FormData(operationForm);
+        const editIndex = formData.get('editIndex');
+        const description = String(formData.get('description') || '').trim();
+        const category = String(formData.get('category') || '').trim();
+        const date = String(formData.get('date') || '').trim();
+        const direction = String(formData.get('direction') || 'inflow');
+        const amount = Number(formData.get('amount') || 0);
+
+        if (!description || !category || !date || amount <= 0) {
+            operationFormResult.textContent = 'Заполните все поля корректно.';
+            return;
+        }
+
+        const formattedAmount = `${direction === 'inflow' ? '+' : '-'}${Math.abs(amount).toLocaleString('ru-RU')} ₽`;
+        const amountClass = direction === 'inflow' ? 'positive' : 'negative';
+        const rowHtml = `
+            <td>${escapeHtml(description)}</td>
+            <td>${escapeHtml(category)}</td>
+            <td>${escapeHtml(date.split('-').reverse().join('.'))}</td>
+            <td class="amount ${amountClass}">${formattedAmount}</td>
+            <td class="align-right"><button class="button button--secondary button--small" type="button" data-operation-edit>Редактировать</button></td>
+        `;
+
+        if (editIndex !== '') {
+            const row = operationsTableBody.querySelector(`tr[data-operation-index="${editIndex}"]`);
+            if (row) {
+                row.dataset.direction = direction;
+                row.innerHTML = rowHtml;
+                operationFormResult.textContent = 'Операция обновлена.';
+            }
+        } else {
+            const row = document.createElement('tr');
+            row.dataset.operationIndex = String(Date.now());
+            row.dataset.direction = direction;
+            row.innerHTML = rowHtml;
+            operationsTableBody.prepend(row);
+            operationFormResult.textContent = 'Операция добавлена.';
+        }
+
+        operationForm.reset();
+        operationForm.elements.editIndex.value = '';
+        operationSubmitButton.textContent = 'Добавить операцию';
+    });
+
+    operationsTableBody.querySelectorAll('tr').forEach((row, index) => {
+        row.dataset.operationIndex = String(index + 1);
+    });
+
+    operationsTableBody.addEventListener('click', (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement) || !target.matches('[data-operation-edit]')) {
+            return;
+        }
+
+        const row = target.closest('tr');
+        if (!row) {
+            return;
+        }
+
+        const cells = row.querySelectorAll('td');
+        const [description, category, date, amountCell] = cells;
+        const rawAmount = Number(amountCell?.textContent?.replace(/[^\d-]/g, '') || 0);
+        const direction = row.dataset.direction || (rawAmount >= 0 ? 'inflow' : 'outflow');
+
+        operationForm.elements.description.value = description?.textContent?.trim() || '';
+        operationForm.elements.category.value = category?.textContent?.trim() || '';
+        operationForm.elements.date.value = (date?.textContent || '').split('.').reverse().join('-');
+        operationForm.elements.direction.value = direction;
+        operationForm.elements.amount.value = String(Math.abs(rawAmount));
+        operationForm.elements.editIndex.value = row.dataset.operationIndex || '';
+        operationSubmitButton.textContent = 'Сохранить изменения';
+        operationFormResult.textContent = 'Режим редактирования операции.';
+    });
+}
+
+function escapeHtml(value) {
+    return value
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
 }
 
 function bindScenarioControls() {

@@ -162,6 +162,15 @@ h3 {
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
+.field select {
+    width: 100%;
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    padding: 14px 16px;
+    background: #fff;
+    outline: none;
+}
+
 .field input:focus {
     border-color: var(--accent-color);
     box-shadow: 0 0 0 4px rgba(39, 174, 96, 0.12);
@@ -227,6 +236,11 @@ h3 {
     display: flex;
     flex-direction: column;
     gap: 28px;
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 1;
+    transform: translateX(0);
+    transition: transform 0.25s ease;
 }
 
 .logo-container {
@@ -325,6 +339,37 @@ h3 {
     flex: 1;
     padding: 30px;
     overflow-y: auto;
+    width: 100%;
+}
+
+.floating-brand-button {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    z-index: 3;
+    border: none;
+    border-radius: 16px;
+    background: rgba(32, 48, 68, 0.95);
+    color: #fff;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+}
+
+.floating-brand-button span {
+    display: grid;
+    text-align: left;
+}
+
+.floating-brand-button small {
+    color: rgba(255, 255, 255, 0.75);
+}
+
+body.sidebar-collapsed .sidebar {
+    transform: translateX(-100%);
 }
 
 .page-header,
@@ -442,6 +487,24 @@ h3 {
     padding: 24px;
 }
 
+.quick-calc {
+    margin-bottom: 24px;
+}
+
+.quick-calc__form {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr)) auto;
+    gap: 16px;
+    align-items: end;
+    margin-top: 14px;
+}
+
+.quick-calc__result {
+    margin-top: 14px;
+    font-weight: 600;
+    color: var(--primary-color);
+}
+
 .content-block--chart {
     min-height: 450px;
 }
@@ -537,6 +600,11 @@ td {
     text-align: right;
 }
 
+.button--small {
+    padding: 8px 12px;
+    border-radius: 10px;
+}
+
 .amount {
     font-family: 'Roboto Mono', monospace;
     text-align: right;
@@ -565,6 +633,10 @@ tr.is-highlighted {
     .dashboard-grid--six,
     .cards-row,
     .content-row {
+        grid-template-columns: 1fr;
+    }
+
+    .quick-calc__form {
         grid-template-columns: 1fr;
     }
 }
@@ -605,5 +677,9 @@ tr.is-highlighted {
 
     .hero-card {
         grid-template-columns: 1fr;
+    }
+
+    .floating-brand-button small {
+        display: none;
     }
 }
