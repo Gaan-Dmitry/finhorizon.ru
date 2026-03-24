@@ -1,8 +1,3 @@
-CREATE DATABASE IF NOT EXISTS finhorizon CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE finhorizon;
-
-SET NAMES utf8mb4;
-SET FOREIGN_KEY_CHECKS = 0;
 
 DROP TABLE IF EXISTS scenario_forecasts;
 DROP TABLE IF EXISTS transactions;
