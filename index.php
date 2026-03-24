@@ -596,12 +596,12 @@ function buildDashboard(PDO $pdo, array $user): array
 
     return [
         'product_overview' => [
-            'title' => 'FinHorizon SaaS',
-            'description' => 'Платформа для финансового планирования, сценарного анализа, бюджетного контроля и управленческой отчетности на базе реальных данных компании.',
+            'title' => 'Ваш финансовый обзор',
+            'description' => 'Ключевые показатели и прогноз по данным вашей компании.',
             'highlights' => [
-                'Авторизация и регистрация с изоляцией компаний',
-                'MySQL + phpMyAdmin для хранения и администрирования данных',
-                'Динамические KPI, бюджеты, графики и отчеты из транзакций',
+                'Выручка, расходы и прибыль в одном окне',
+                'Контроль бюджета по статьям',
+                'Быстрое переключение сценариев',
             ],
         ],
         'stats' => [
@@ -670,20 +670,20 @@ $defaultScenario = $dashboard['scenarios'][0]['id'] ?? 'base';
                 <img class="brand-logo" src="img/logo.png" alt="Логотип FinHorizon">
                 <div>
                     <div class="brand-name">FinHorizon</div>
-                    <div class="brand-subtitle">Финансовая SaaS-платформа для малого и среднего бизнеса</div>
+                    <div class="brand-subtitle">Финансовый кабинет</div>
                 </div>
             </div>
-            <h1>Настроенная регистрация, авторизация и реальная база для финансовой аналитики.</h1>
-            <p>Подключите MySQL, импортируйте SQL-схему, управляйте компаниями и получайте живые KPI, бюджеты, сценарии и отчеты без ручной правки шаблонов.</p>
+            <h1>Контролируйте финансы в одном месте.</h1>
+            <p>Регистрируйтесь, указывайте данные компании и сразу получайте расчет ключевых показателей.</p>
             <ul class="hero-card__list auth-list">
-                <li>Мультикомпания и пользовательские роли.</li>
-                <li>Динамические расчеты выручки, расходов, cash flow и forecast accuracy.</li>
-                <li>phpMyAdmin для администрирования и SQL-файл для быстрого старта.</li>
+                <li>Быстрый вход и регистрация.</li>
+                <li>Динамический расчет метрик.</li>
+                <li>Сценарии и бюджет в реальном времени.</li>
             </ul>
             <div class="sidebar-summary auth-summary">
                 <div class="sidebar-summary__label">Быстрый старт</div>
                 <strong>Demo login: owner@demo.fin / DemoPass123!</strong>
-                <span>Если база недоступна, подключите MySQL из <code>docker-compose.yml</code> и импортируйте <code>sql/schema.sql</code>.</span>
+                <span>При необходимости проверьте параметры подключения в <code>docker-compose.yml</code>.</span>
             </div>
         </section>
 
@@ -748,7 +748,7 @@ $defaultScenario = $dashboard['scenarios'][0]['id'] ?? 'base';
     </div>
 <?php else: ?>
     <div class="app-shell">
-        <aside class="sidebar">
+        <aside class="sidebar" id="sidebar">
             <div class="logo-container">
                 <img class="brand-logo" src="img/logo.png" alt="Логотип FinHorizon">
                 <div>
@@ -783,6 +783,7 @@ $defaultScenario = $dashboard['scenarios'][0]['id'] ?? 'base';
         <main class="main-content">
             <header class="page-header">
                 <div>
+                    <button class="sidebar-toggle button button--secondary" type="button" id="sidebarToggleButton" aria-expanded="true" aria-controls="sidebar">Свернуть меню</button>
                     <h1 id="pageHeading">Финансовый командный центр</h1>
                     <p class="slogan" id="pageSlogan">Актуальные KPI, cash flow и сценарии по данным вашей компании.</p>
                 </div>
@@ -805,7 +806,7 @@ $defaultScenario = $dashboard['scenarios'][0]['id'] ?? 'base';
 
             <section class="hero-card">
                 <div class="hero-card__content">
-                    <p class="hero-card__eyebrow">Описание продукта</p>
+                    <p class="hero-card__eyebrow">Коротко</p>
                     <h2><?= h($dashboard['product_overview']['title']); ?></h2>
                     <p><?= h($dashboard['product_overview']['description']); ?></p>
                     <ul class="hero-card__list">
@@ -820,6 +821,27 @@ $defaultScenario = $dashboard['scenarios'][0]['id'] ?? 'base';
             </section>
 
             <section class="content-section is-active" data-section="dashboard">
+                <section class="content-block quick-calc">
+                    <div class="block-header">
+                        <div>
+                            <h2>Быстрый расчет</h2>
+                            <p>Введите свои доходы и расходы, чтобы мгновенно увидеть результат.</p>
+                        </div>
+                    </div>
+                    <form class="quick-calc__form" id="quickCalcForm">
+                        <label class="field">
+                            <span>Доходы, ₽</span>
+                            <input type="number" name="income" min="0" step="1" placeholder="Например, 500000" required>
+                        </label>
+                        <label class="field">
+                            <span>Расходы, ₽</span>
+                            <input type="number" name="expense" min="0" step="1" placeholder="Например, 320000" required>
+                        </label>
+                        <button class="button" type="submit">Рассчитать</button>
+                    </form>
+                    <div class="quick-calc__result" id="quickCalcResult">Заполните поля, чтобы рассчитать прибыль и рентабельность.</div>
+                </section>
+
                 <div class="dashboard-grid dashboard-grid--six">
                     <?php foreach ($dashboard['stats'] as $stat): ?>
                         <article class="card <?= $stat['state'] === 'neutral' ? '' : 'card--' . $stat['state']; ?>">

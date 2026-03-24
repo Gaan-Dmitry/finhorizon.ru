@@ -25,14 +25,20 @@ const highlightBudgetButton = document.getElementById('highlightBudgetButton');
 const settingsForm = document.getElementById('settingsForm');
 const resetSettingsButton = document.getElementById('resetSettingsButton');
 const settingsHint = document.getElementById('settingsHint');
+const sidebar = document.getElementById('sidebar');
+const sidebarToggleButton = document.getElementById('sidebarToggleButton');
+const quickCalcForm = document.getElementById('quickCalcForm');
+const quickCalcResult = document.getElementById('quickCalcResult');
 
 const chart = createChart();
 restoreSettings();
 applySettings();
 bindNavigation();
+bindSidebarToggle();
 bindBudgetTools();
 bindScenarioControls();
 bindSettingsForm();
+bindQuickCalc();
 
 function bindNavigation() {
     navButtons.forEach((button) => {
@@ -66,6 +72,37 @@ function bindBudgetTools() {
         if (state.settings.notifications) {
             settingsHint.textContent = 'Обнаружены статьи с риском перерасхода. Проверьте лимиты.';
         }
+    });
+}
+
+function bindSidebarToggle() {
+    if (!sidebar || !sidebarToggleButton) {
+        return;
+    }
+
+    sidebarToggleButton.addEventListener('click', () => {
+        const isCollapsed = root.classList.toggle('sidebar-collapsed');
+        sidebarToggleButton.textContent = isCollapsed ? 'Развернуть меню' : 'Свернуть меню';
+        sidebarToggleButton.setAttribute('aria-expanded', String(!isCollapsed));
+    });
+}
+
+function bindQuickCalc() {
+    if (!quickCalcForm || !quickCalcResult) {
+        return;
+    }
+
+    quickCalcForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const formData = new FormData(quickCalcForm);
+        const income = Number(formData.get('income') || 0);
+        const expense = Number(formData.get('expense') || 0);
+        const profit = income - expense;
+        const margin = income > 0 ? (profit / income) * 100 : 0;
+
+        const profitability = margin >= 0 ? 'Положительная' : 'Отрицательная';
+        const profitLabel = `${profit >= 0 ? '+' : '-'}${Math.abs(profit).toLocaleString('ru-RU')} ₽`;
+        quickCalcResult.textContent = `Прибыль: ${profitLabel} · Рентабельность: ${margin.toFixed(1)}% (${profitability}).`;
     });
 }
 
