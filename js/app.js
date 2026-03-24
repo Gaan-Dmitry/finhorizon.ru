@@ -352,17 +352,34 @@ function updateChart(scenarioId) {
 function scenarioToDataset(scenarioId) {
     const labels = config.chart?.labels || [];
     const values = config.chart?.scenarios?.[scenarioId] || [];
-    if (values.length === labels.length) {
-        return values;
+    const anchorIndex = actualValues.reduce((lastIndex, value, index) => (value !== null && value !== undefined ? index : lastIndex), -1);
+
+    const baseValues = values.length === labels.length ? values : (() => {
+        const firstProjectedIndex = actualValues.findIndex((value) => value === null || value === undefined);
+        const startIndex = firstProjectedIndex === -1 ? Math.max(labels.length - values.length, 0) : Math.max(firstProjectedIndex - 1, 0);
+        const seeded = new Array(labels.length).fill(null);
+        values.forEach((value, index) => {
+            const targetIndex = startIndex + index;
+            if (targetIndex < seeded.length) {
+                seeded[targetIndex] = value;
+            }
+        });
+
+        return seeded;
+    })();
+
+    if (anchorIndex === -1) {
+        return baseValues;
     }
 
-    const actualValues = config.chart?.actual || [];
-    const firstProjectedIndex = actualValues.findIndex((value) => value === null || value === undefined);
-    const startIndex = firstProjectedIndex === -1 ? Math.max(labels.length - values.length, 0) : Math.max(firstProjectedIndex - 1, 0);
     const dataset = new Array(labels.length).fill(null);
-    values.forEach((value, index) => {
-        const targetIndex = startIndex + index;
-        if (targetIndex < dataset.length) {
+    const projectedValues = baseValues.filter((value) => value !== null && value !== undefined);
+    const hasCurrentMonthProjection = baseValues[anchorIndex] !== null && baseValues[anchorIndex] !== undefined;
+
+    dataset[anchorIndex] = actualValues[anchorIndex];
+    projectedValues.forEach((value, index) => {
+        const targetIndex = anchorIndex + (hasCurrentMonthProjection ? index : index + 1);
+        if (targetIndex > anchorIndex && targetIndex < dataset.length) {
             dataset[targetIndex] = value;
         }
     });

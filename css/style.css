@@ -517,10 +517,14 @@ body.sidebar-collapsed .sidebar .nav-button {
 
 .quick-calc__form {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr)) auto;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     gap: 16px;
     align-items: end;
     margin-top: 14px;
+}
+
+.quick-calc__form .button {
+    width: 100%;
 }
 
 .quick-calc__result {
@@ -690,12 +694,8 @@ tr.is-highlighted {
         grid-template-columns: 1fr;
     }
 
-    .quick-calc__form {
-        grid-template-columns: 1fr;
-    }
-
     .forecast-summary {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     }
 }
 
