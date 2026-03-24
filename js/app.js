@@ -55,6 +55,9 @@ function bindNavigation() {
 
             pageHeading.textContent = button.dataset.heading || 'Финансовая панель';
             pageSlogan.textContent = button.dataset.slogan || '';
+
+            root.classList.add('sidebar-collapsed');
+            sidebarToggleButton?.setAttribute('aria-expanded', 'false');
         });
     });
 }
