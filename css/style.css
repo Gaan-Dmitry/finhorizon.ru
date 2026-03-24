@@ -327,6 +327,18 @@ h3 {
     overflow-y: auto;
 }
 
+.sidebar-toggle {
+    margin-bottom: 12px;
+}
+
+body.sidebar-collapsed .sidebar {
+    width: 0;
+    padding: 0;
+    opacity: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
 .page-header,
 .block-header,
 .scenario-card__header,
@@ -440,6 +452,24 @@ h3 {
 .scenario-card,
 .report-card {
     padding: 24px;
+}
+
+.quick-calc {
+    margin-bottom: 24px;
+}
+
+.quick-calc__form {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+    gap: 16px;
+    align-items: end;
+    margin-top: 14px;
+}
+
+.quick-calc__result {
+    margin-top: 14px;
+    font-weight: 600;
+    color: var(--primary-color);
 }
 
 .content-block--chart {
@@ -565,6 +595,10 @@ tr.is-highlighted {
     .dashboard-grid--six,
     .cards-row,
     .content-row {
+        grid-template-columns: 1fr;
+    }
+
+    .quick-calc__form {
         grid-template-columns: 1fr;
     }
 }
