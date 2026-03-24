@@ -85,11 +85,10 @@ function bindSidebarToggle() {
         return;
     }
 
-    root.classList.add('sidebar-collapsed');
-
     sidebarToggleButton.addEventListener('click', () => {
         const isCollapsed = root.classList.toggle('sidebar-collapsed');
         sidebarToggleButton.setAttribute('aria-expanded', String(!isCollapsed));
+        sidebarToggleButton.setAttribute('aria-label', isCollapsed ? 'Развернуть меню' : 'Свернуть меню');
     });
 }
 

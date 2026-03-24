@@ -748,21 +748,22 @@ $defaultScenario = $dashboard['scenarios'][0]['id'] ?? 'base';
     </div>
 <?php else: ?>
     <div class="app-shell">
-        <button class="floating-brand-button" type="button" id="sidebarToggleButton" aria-expanded="false" aria-controls="sidebar">
-            <img class="brand-logo" src="img/logo.png" alt="Логотип FinHorizon">
-            <span>
-                <strong>FinHorizon</strong>
-                <small>Финансовая операционная система</small>
-            </span>
-        </button>
-
         <aside class="sidebar" id="sidebar">
-            <div class="logo-container">
-                <img class="brand-logo" src="img/logo.png" alt="Логотип FinHorizon">
-                <div>
-                    <div class="brand-name">FinHorizon</div>
-                    <div class="brand-subtitle">Финансовая операционная система</div>
+            <div class="sidebar-header">
+                <div class="logo-container">
+                    <img class="brand-logo" src="img/logo.png" alt="Логотип FinHorizon">
+                    <div>
+                        <div class="brand-name">FinHorizon</div>
+                        <div class="brand-subtitle">Финансовая операционная система</div>
+                    </div>
                 </div>
+                <button class="sidebar-toggle" type="button" id="sidebarToggleButton" aria-expanded="true" aria-controls="sidebar" aria-label="Свернуть меню">
+                    ☰
+                </button>
+            </div>
+
+            <div class="logo-container sidebar-compact-logo">
+                <img class="brand-logo" src="img/logo.png" alt="Логотип FinHorizon">
             </div>
 
             <div class="sidebar-product-card">
@@ -893,7 +894,7 @@ $defaultScenario = $dashboard['scenarios'][0]['id'] ?? 'base';
                         </div>
                     </section>
 
-                    <section class="content-block">
+                    <section class="content-block content-block--operations">
                         <h2>Последние операции</h2>
                         <table id="operationsTable">
                             <thead>
