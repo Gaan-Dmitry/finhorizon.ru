@@ -539,6 +539,39 @@ function buildDashboard(PDO $pdo, array $user): array
             $chartScenarios[$row['scenario_code']][$targetIndex] = (float) $row['revenue_forecast'];
         }
     }
+    $actual = array_merge($actual, [null, null, null]);
+
+    $chartScenarios = [];
+    foreach ($scenarioRows as $row) {
+        $chartScenarios[$row['scenario_code']] ??= array_fill(0, count($chartLabels), null);
+        $forecastMonth = new DateTimeImmutable($row['forecast_month']);
+        $offset = ((int) $forecastMonth->format('Y') - (int) $now->format('Y')) * 12 + ((int) $forecastMonth->format('n') - (int) $now->format('n'));
+        $targetIndex = 3 + $offset;
+        if ($targetIndex >= 0 && $targetIndex < count($chartLabels)) {
+            $chartScenarios[$row['scenario_code']][$targetIndex] = (float) $row['revenue_forecast'];
+        }
+    }
+
+    $reports = [
+        [
+            'title' => 'P&L за текущий месяц',
+            'period' => ucfirst(fullMonthLabel($now)),
+            'status' => $profitMonth >= 0 ? 'Готов' : 'Нужна реакция',
+            'value' => sprintf('Маржа %s', formatCurrency($profitMonth)),
+        ],
+        [
+            'title' => 'Cash Flow 30 дней',
+            'period' => $now->modify('-29 days')->format('d.m') . ' — ' . $now->format('d.m'),
+            'status' => ((float) $stats['cash_in_30'] - (float) $stats['cash_out_30']) >= 0 ? 'Готов' : 'В работе',
+            'value' => sprintf('Чистый поток %s', formatCurrency((float) $stats['cash_in_30'] - (float) $stats['cash_out_30'])),
+        ],
+        [
+            'title' => 'Контроль бюджета',
+            'period' => ucfirst(fullMonthLabel($now)),
+            'status' => count(array_filter($budgetArticles, static fn (array $item): bool => $item['status'] !== 'В лимите')) > 0 ? 'В работе' : 'Готов',
+            'value' => sprintf('%d статей расходов', count($budgetArticles)),
+        ],
+    ];
 
     $reports = [
         [
