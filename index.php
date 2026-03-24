@@ -892,6 +892,20 @@ $defaultScenario = $dashboard['scenarios'][0]['id'] ?? 'base';
                         <div class="chart-surface">
                             <canvas id="forecastChart"></canvas>
                         </div>
+                        <div class="forecast-summary" id="forecastSummary">
+                            <article class="forecast-summary__item">
+                                <span>Ближайший прогноз</span>
+                                <strong id="forecastNearest">—</strong>
+                            </article>
+                            <article class="forecast-summary__item">
+                                <span>Средний прогноз</span>
+                                <strong id="forecastAverage">—</strong>
+                            </article>
+                            <article class="forecast-summary__item">
+                                <span>Пик прогноза</span>
+                                <strong id="forecastPeak">—</strong>
+                            </article>
+                        </div>
                     </section>
 
                     <section class="content-block content-block--operations">

@@ -31,6 +31,9 @@ const operationForm = document.getElementById('operationForm');
 const operationFormResult = document.getElementById('operationFormResult');
 const operationSubmitButton = document.getElementById('operationSubmitButton');
 const operationsTableBody = document.getElementById('operationsTableBody');
+const forecastNearest = document.getElementById('forecastNearest');
+const forecastAverage = document.getElementById('forecastAverage');
+const forecastPeak = document.getElementById('forecastPeak');
 
 const chart = createChart();
 restoreSettings();
@@ -259,8 +262,10 @@ function createChart() {
                     label: 'Фактическая выручка',
                     data: config.chart?.actual || [],
                     borderColor: '#2C3E50',
-                    backgroundColor: '#2C3E50',
-                    tension: 0.2,
+                    backgroundColor: '#2C3E5022',
+                    pointRadius: 4,
+                    pointHoverRadius: 6,
+                    tension: 0.25,
                     borderWidth: 3,
                 },
                 {
@@ -269,6 +274,8 @@ function createChart() {
                     borderColor: state.settings.accent,
                     backgroundColor: `${state.settings.accent}22`,
                     borderDash: [8, 5],
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
                     fill: true,
                     tension: 0.3,
                     borderWidth: 3,
@@ -281,18 +288,46 @@ function createChart() {
             plugins: {
                 legend: {
                     position: 'bottom',
+                    labels: {
+                        boxWidth: 14,
+                        boxHeight: 14,
+                        font: {
+                            size: 13,
+                        },
+                    },
+                },
+                tooltip: {
+                    callbacks: {
+                        label(context) {
+                            const value = Number(context.parsed.y || 0);
+                            return `${context.dataset.label}: ${formatMoney(value)}`;
+                        },
+                    },
                 },
             },
             scales: {
                 y: {
                     beginAtZero: true,
+                    grid: {
+                        color: '#e8edf3',
+                    },
                     ticks: {
                         font: {
                             family: 'Roboto Mono',
+                            size: 12,
                         },
                         callback(value) {
-                            return `${Number(value).toLocaleString('ru-RU')} ₽`;
+                            const amount = Number(value);
+                            if (amount >= 1_000_000) {
+                                return `${(amount / 1_000_000).toFixed(1)} млн ₽`;
+                            }
+                            return `${amount.toLocaleString('ru-RU')} ₽`;
                         },
+                    },
+                },
+                x: {
+                    grid: {
+                        display: false,
                     },
                 },
             },
@@ -302,6 +337,7 @@ function createChart() {
 
 function updateChart(scenarioId) {
     if (!chart) {
+        updateForecastSummary(scenarioId);
         return;
     }
 
@@ -310,16 +346,20 @@ function updateChart(scenarioId) {
     chart.data.datasets[1].borderColor = state.settings.accent;
     chart.data.datasets[1].backgroundColor = `${state.settings.accent}22`;
     chart.update();
+    updateForecastSummary(scenarioId);
 }
 
 function scenarioToDataset(scenarioId) {
     const labels = config.chart?.labels || [];
-    const actualValues = config.chart?.actual || [];
     const values = config.chart?.scenarios?.[scenarioId] || [];
+    if (values.length === labels.length) {
+        return values;
+    }
+
+    const actualValues = config.chart?.actual || [];
     const firstProjectedIndex = actualValues.findIndex((value) => value === null || value === undefined);
     const startIndex = firstProjectedIndex === -1 ? Math.max(labels.length - values.length, 0) : Math.max(firstProjectedIndex - 1, 0);
     const dataset = new Array(labels.length).fill(null);
-
     values.forEach((value, index) => {
         const targetIndex = startIndex + index;
         if (targetIndex < dataset.length) {
@@ -368,4 +408,26 @@ function applySettings() {
     root.style.setProperty('--accent-color', state.settings.accent);
     root.classList.toggle('compact-mode', state.settings.compactMode);
     updateChart(state.activeScenario);
+}
+
+function updateForecastSummary(scenarioId) {
+    const values = scenarioToDataset(scenarioId).filter((value) => Number.isFinite(value));
+    if (values.length === 0) {
+        if (forecastNearest) forecastNearest.textContent = '—';
+        if (forecastAverage) forecastAverage.textContent = '—';
+        if (forecastPeak) forecastPeak.textContent = '—';
+        return;
+    }
+
+    const nearest = values[0];
+    const average = values.reduce((sum, value) => sum + Number(value), 0) / values.length;
+    const peak = Math.max(...values.map((value) => Number(value)));
+
+    if (forecastNearest) forecastNearest.textContent = formatMoney(nearest);
+    if (forecastAverage) forecastAverage.textContent = formatMoney(average);
+    if (forecastPeak) forecastPeak.textContent = formatMoney(peak);
+}
+
+function formatMoney(value) {
+    return `${Number(value).toLocaleString('ru-RU')} ₽`;
 }
