@@ -25,14 +25,25 @@ const highlightBudgetButton = document.getElementById('highlightBudgetButton');
 const settingsForm = document.getElementById('settingsForm');
 const resetSettingsButton = document.getElementById('resetSettingsButton');
 const settingsHint = document.getElementById('settingsHint');
+const sidebar = document.getElementById('sidebar');
+const sidebarToggleButton = document.getElementById('sidebarToggleButton');
+const operationForm = document.getElementById('operationForm');
+const operationFormResult = document.getElementById('operationFormResult');
+const operationSubmitButton = document.getElementById('operationSubmitButton');
+const operationsTableBody = document.getElementById('operationsTableBody');
+const forecastNearest = document.getElementById('forecastNearest');
+const forecastAverage = document.getElementById('forecastAverage');
+const forecastPeak = document.getElementById('forecastPeak');
 
 const chart = createChart();
 restoreSettings();
 applySettings();
 bindNavigation();
+bindSidebarToggle();
 bindBudgetTools();
 bindScenarioControls();
 bindSettingsForm();
+bindOperations();
 
 function bindNavigation() {
     navButtons.forEach((button) => {
@@ -67,6 +78,109 @@ function bindBudgetTools() {
             settingsHint.textContent = 'Обнаружены статьи с риском перерасхода. Проверьте лимиты.';
         }
     });
+}
+
+function bindSidebarToggle() {
+    if (!sidebar || !sidebarToggleButton) {
+        return;
+    }
+
+    sidebarToggleButton.addEventListener('click', () => {
+        const isCollapsed = root.classList.toggle('sidebar-collapsed');
+        sidebarToggleButton.setAttribute('aria-expanded', String(!isCollapsed));
+        sidebarToggleButton.setAttribute('aria-label', isCollapsed ? 'Развернуть меню' : 'Свернуть меню');
+    });
+}
+
+function bindOperations() {
+    if (!operationForm || !operationFormResult || !operationsTableBody) {
+        return;
+    }
+
+    operationForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const formData = new FormData(operationForm);
+        const editIndex = formData.get('editIndex');
+        const description = String(formData.get('description') || '').trim();
+        const category = String(formData.get('category') || '').trim();
+        const date = String(formData.get('date') || '').trim();
+        const direction = String(formData.get('direction') || 'inflow');
+        const amount = Number(formData.get('amount') || 0);
+
+        if (!description || !category || !date || amount <= 0) {
+            operationFormResult.textContent = 'Заполните все поля корректно.';
+            return;
+        }
+
+        const formattedAmount = `${direction === 'inflow' ? '+' : '-'}${Math.abs(amount).toLocaleString('ru-RU')} ₽`;
+        const amountClass = direction === 'inflow' ? 'positive' : 'negative';
+        const rowHtml = `
+            <td>${escapeHtml(description)}</td>
+            <td>${escapeHtml(category)}</td>
+            <td>${escapeHtml(date.split('-').reverse().join('.'))}</td>
+            <td class="amount ${amountClass}">${formattedAmount}</td>
+            <td class="align-right"><button class="button button--secondary button--small" type="button" data-operation-edit>Редактировать</button></td>
+        `;
+
+        if (editIndex !== '') {
+            const row = operationsTableBody.querySelector(`tr[data-operation-index="${editIndex}"]`);
+            if (row) {
+                row.dataset.direction = direction;
+                row.innerHTML = rowHtml;
+                operationFormResult.textContent = 'Операция обновлена.';
+            }
+        } else {
+            const row = document.createElement('tr');
+            row.dataset.operationIndex = String(Date.now());
+            row.dataset.direction = direction;
+            row.innerHTML = rowHtml;
+            operationsTableBody.prepend(row);
+            operationFormResult.textContent = 'Операция добавлена.';
+        }
+
+        operationForm.reset();
+        operationForm.elements.editIndex.value = '';
+        operationSubmitButton.textContent = 'Добавить операцию';
+    });
+
+    operationsTableBody.querySelectorAll('tr').forEach((row, index) => {
+        row.dataset.operationIndex = String(index + 1);
+    });
+
+    operationsTableBody.addEventListener('click', (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement) || !target.matches('[data-operation-edit]')) {
+            return;
+        }
+
+        const row = target.closest('tr');
+        if (!row) {
+            return;
+        }
+
+        const cells = row.querySelectorAll('td');
+        const [description, category, date, amountCell] = cells;
+        const rawAmount = Number(amountCell?.textContent?.replace(/[^\d-]/g, '') || 0);
+        const direction = row.dataset.direction || (rawAmount >= 0 ? 'inflow' : 'outflow');
+
+        operationForm.elements.description.value = description?.textContent?.trim() || '';
+        operationForm.elements.category.value = category?.textContent?.trim() || '';
+        operationForm.elements.date.value = (date?.textContent || '').split('.').reverse().join('-');
+        operationForm.elements.direction.value = direction;
+        operationForm.elements.amount.value = String(Math.abs(rawAmount));
+        operationForm.elements.editIndex.value = row.dataset.operationIndex || '';
+        operationSubmitButton.textContent = 'Сохранить изменения';
+        operationFormResult.textContent = 'Режим редактирования операции.';
+    });
+}
+
+function escapeHtml(value) {
+    return value
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
 }
 
 function bindScenarioControls() {
@@ -145,8 +259,10 @@ function createChart() {
                     label: 'Фактическая выручка',
                     data: config.chart?.actual || [],
                     borderColor: '#2C3E50',
-                    backgroundColor: '#2C3E50',
-                    tension: 0.2,
+                    backgroundColor: '#2C3E5022',
+                    pointRadius: 4,
+                    pointHoverRadius: 6,
+                    tension: 0.25,
                     borderWidth: 3,
                 },
                 {
@@ -155,6 +271,8 @@ function createChart() {
                     borderColor: state.settings.accent,
                     backgroundColor: `${state.settings.accent}22`,
                     borderDash: [8, 5],
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
                     fill: true,
                     tension: 0.3,
                     borderWidth: 3,
@@ -167,18 +285,46 @@ function createChart() {
             plugins: {
                 legend: {
                     position: 'bottom',
+                    labels: {
+                        boxWidth: 14,
+                        boxHeight: 14,
+                        font: {
+                            size: 13,
+                        },
+                    },
+                },
+                tooltip: {
+                    callbacks: {
+                        label(context) {
+                            const value = Number(context.parsed.y || 0);
+                            return `${context.dataset.label}: ${formatMoney(value)}`;
+                        },
+                    },
                 },
             },
             scales: {
                 y: {
                     beginAtZero: true,
+                    grid: {
+                        color: '#e8edf3',
+                    },
                     ticks: {
                         font: {
                             family: 'Roboto Mono',
+                            size: 12,
                         },
                         callback(value) {
-                            return `${Number(value).toLocaleString('ru-RU')} ₽`;
+                            const amount = Number(value);
+                            if (amount >= 1_000_000) {
+                                return `${(amount / 1_000_000).toFixed(1)} млн ₽`;
+                            }
+                            return `${amount.toLocaleString('ru-RU')} ₽`;
                         },
+                    },
+                },
+                x: {
+                    grid: {
+                        display: false,
                     },
                 },
             },
@@ -188,6 +334,7 @@ function createChart() {
 
 function updateChart(scenarioId) {
     if (!chart) {
+        updateForecastSummary(scenarioId);
         return;
     }
 
@@ -196,16 +343,20 @@ function updateChart(scenarioId) {
     chart.data.datasets[1].borderColor = state.settings.accent;
     chart.data.datasets[1].backgroundColor = `${state.settings.accent}22`;
     chart.update();
+    updateForecastSummary(scenarioId);
 }
 
 function scenarioToDataset(scenarioId) {
     const labels = config.chart?.labels || [];
-    const actualValues = config.chart?.actual || [];
     const values = config.chart?.scenarios?.[scenarioId] || [];
+    if (values.length === labels.length) {
+        return values;
+    }
+
+    const actualValues = config.chart?.actual || [];
     const firstProjectedIndex = actualValues.findIndex((value) => value === null || value === undefined);
     const startIndex = firstProjectedIndex === -1 ? Math.max(labels.length - values.length, 0) : Math.max(firstProjectedIndex - 1, 0);
     const dataset = new Array(labels.length).fill(null);
-
     values.forEach((value, index) => {
         const targetIndex = startIndex + index;
         if (targetIndex < dataset.length) {
@@ -254,4 +405,26 @@ function applySettings() {
     root.style.setProperty('--accent-color', state.settings.accent);
     root.classList.toggle('compact-mode', state.settings.compactMode);
     updateChart(state.activeScenario);
+}
+
+function updateForecastSummary(scenarioId) {
+    const values = scenarioToDataset(scenarioId).filter((value) => Number.isFinite(value));
+    if (values.length === 0) {
+        if (forecastNearest) forecastNearest.textContent = '—';
+        if (forecastAverage) forecastAverage.textContent = '—';
+        if (forecastPeak) forecastPeak.textContent = '—';
+        return;
+    }
+
+    const nearest = values[0];
+    const average = values.reduce((sum, value) => sum + Number(value), 0) / values.length;
+    const peak = Math.max(...values.map((value) => Number(value)));
+
+    if (forecastNearest) forecastNearest.textContent = formatMoney(nearest);
+    if (forecastAverage) forecastAverage.textContent = formatMoney(average);
+    if (forecastPeak) forecastPeak.textContent = formatMoney(peak);
+}
+
+function formatMoney(value) {
+    return `${Number(value).toLocaleString('ru-RU')} ₽`;
 }

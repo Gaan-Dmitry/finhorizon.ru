@@ -596,12 +596,12 @@ function buildDashboard(PDO $pdo, array $user): array
 
     return [
         'product_overview' => [
-            'title' => 'FinHorizon SaaS',
-            'description' => 'Платформа для финансового планирования, сценарного анализа, бюджетного контроля и управленческой отчетности на базе реальных данных компании.',
+            'title' => 'Ваш финансовый обзор',
+            'description' => 'Ключевые показатели и прогноз по данным вашей компании.',
             'highlights' => [
-                'Авторизация и регистрация с изоляцией компаний',
-                'MySQL + phpMyAdmin для хранения и администрирования данных',
-                'Динамические KPI, бюджеты, графики и отчеты из транзакций',
+                'Выручка, расходы и прибыль в одном окне',
+                'Контроль бюджета по статьям',
+                'Быстрое переключение сценариев',
             ],
         ],
         'stats' => [
@@ -670,20 +670,20 @@ $defaultScenario = $dashboard['scenarios'][0]['id'] ?? 'base';
                 <img class="brand-logo" src="img/logo.png" alt="Логотип FinHorizon">
                 <div>
                     <div class="brand-name">FinHorizon</div>
-                    <div class="brand-subtitle">Финансовая SaaS-платформа для малого и среднего бизнеса</div>
+                    <div class="brand-subtitle">Финансовый кабинет</div>
                 </div>
             </div>
-            <h1>Настроенная регистрация, авторизация и реальная база для финансовой аналитики.</h1>
-            <p>Подключите MySQL, импортируйте SQL-схему, управляйте компаниями и получайте живые KPI, бюджеты, сценарии и отчеты без ручной правки шаблонов.</p>
+            <h1>Контролируйте финансы в одном месте.</h1>
+            <p>Регистрируйтесь, указывайте данные компании и сразу получайте расчет ключевых показателей.</p>
             <ul class="hero-card__list auth-list">
-                <li>Мультикомпания и пользовательские роли.</li>
-                <li>Динамические расчеты выручки, расходов, cash flow и forecast accuracy.</li>
-                <li>phpMyAdmin для администрирования и SQL-файл для быстрого старта.</li>
+                <li>Быстрый вход и регистрация.</li>
+                <li>Динамический расчет метрик.</li>
+                <li>Сценарии и бюджет в реальном времени.</li>
             </ul>
             <div class="sidebar-summary auth-summary">
                 <div class="sidebar-summary__label">Быстрый старт</div>
                 <strong>Demo login: owner@demo.fin / DemoPass123!</strong>
-                <span>Если база недоступна, подключите MySQL из <code>docker-compose.yml</code> и импортируйте <code>sql/schema.sql</code>.</span>
+                <span>Войдите или зарегистрируйте компанию, чтобы начать работу.</span>
             </div>
         </section>
 
@@ -748,35 +748,44 @@ $defaultScenario = $dashboard['scenarios'][0]['id'] ?? 'base';
     </div>
 <?php else: ?>
     <div class="app-shell">
-        <aside class="sidebar">
-            <div class="logo-container">
-                <img class="brand-logo" src="img/logo.png" alt="Логотип FinHorizon">
-                <div>
-                    <div class="brand-name">FinHorizon</div>
-                    <div class="brand-subtitle">Financial Operating System</div>
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-container">
+                    <img class="brand-logo" src="img/logo.png" alt="Логотип FinHorizon">
+                    <div>
+                        <div class="brand-name">FinHorizon</div>
+                        <div class="brand-subtitle">Финансовая операционная система</div>
+                    </div>
                 </div>
+                <button class="sidebar-toggle" type="button" id="sidebarToggleButton" aria-expanded="true" aria-controls="sidebar" aria-label="Свернуть меню">
+                    ☰
+                </button>
+            </div>
+
+            <div class="logo-container sidebar-compact-logo">
+                <img class="brand-logo" src="img/logo.png" alt="Логотип FinHorizon">
             </div>
 
             <div class="sidebar-product-card">
                 <p class="sidebar-product-card__eyebrow"><?= h($user['industry']); ?></p>
                 <strong><?= h($user['company_name']); ?></strong>
-                <span>Компания работает в режиме SaaS-кабинета: все финансовые блоки рассчитываются из базы MySQL.</span>
+                <span>Рабочее пространство вашей компании.</span>
             </div>
 
             <nav class="sidebar-nav" aria-label="Основная навигация">
                 <ul>
                     <li><button class="nav-button is-active" type="button" data-section-target="dashboard" data-heading="Финансовый командный центр" data-slogan="Актуальные KPI, cash flow и сценарии по данным вашей компании."><span class="nav-button__icon"><svg viewBox="0 0 24 24"><use href="img/icons.svg#dashboard"></use></svg></span><span>Дашборд</span></button></li>
                     <li><button class="nav-button" type="button" data-section-target="articles" data-heading="Контроль бюджета" data-slogan="Статьи и лимиты считаются по операциям текущего месяца."><span class="nav-button__icon"><svg viewBox="0 0 24 24"><use href="img/icons.svg#articles"></use></svg></span><span>Бюджеты</span></button></li>
-                    <li><button class="nav-button" type="button" data-section-target="scenarios" data-heading="Сценарное моделирование" data-slogan="Базовый, ростовой и стресс-сценарии загружаются из MySQL."><span class="nav-button__icon"><svg viewBox="0 0 24 24"><use href="img/icons.svg#scenarios"></use></svg></span><span>Сценарии</span></button></li>
+                    <li><button class="nav-button" type="button" data-section-target="scenarios" data-heading="Сценарное моделирование" data-slogan="Сравнение базового, ростового и стресс-сценариев."><span class="nav-button__icon"><svg viewBox="0 0 24 24"><use href="img/icons.svg#scenarios"></use></svg></span><span>Сценарии</span></button></li>
                     <li><button class="nav-button" type="button" data-section-target="reports" data-heading="Управленческие отчеты" data-slogan="P&L, cash flow и контроль бюджета рассчитываются динамически."><span class="nav-button__icon"><svg viewBox="0 0 24 24"><use href="img/icons.svg#reports"></use></svg></span><span>Отчеты</span></button></li>
                     <li><button class="nav-button" type="button" data-section-target="settings" data-heading="Настройки кабинета" data-slogan="Локальные интерфейсные настройки и подсветка рисков."><span class="nav-button__icon"><svg viewBox="0 0 24 24"><use href="img/icons.svg#settings"></use></svg></span><span>Настройки</span></button></li>
                 </ul>
             </nav>
 
             <div class="sidebar-summary">
-                <div class="sidebar-summary__label">Хранилище</div>
-                <strong>MySQL / phpMyAdmin</strong>
-                <span>База: <?= h($app['db_name']); ?> · Хост: <?= h($app['db_host']); ?>:<?= h($app['db_port']); ?></span>
+                <div class="sidebar-summary__label">Профиль</div>
+                <strong><?= h($user['full_name']); ?></strong>
+                <span><?= h($user['email']); ?></span>
             </div>
         </aside>
 
@@ -784,7 +793,7 @@ $defaultScenario = $dashboard['scenarios'][0]['id'] ?? 'base';
             <header class="page-header">
                 <div>
                     <h1 id="pageHeading">Финансовый командный центр</h1>
-                    <p class="slogan" id="pageSlogan">Актуальные KPI, cash flow и сценарии по данным вашей компании.</p>
+                    <p class="slogan" id="pageSlogan">Актуальные KPI, денежный поток и сценарии вашей компании.</p>
                 </div>
                 <div class="profile-panel">
                     <div class="profile-card">
@@ -805,7 +814,7 @@ $defaultScenario = $dashboard['scenarios'][0]['id'] ?? 'base';
 
             <section class="hero-card">
                 <div class="hero-card__content">
-                    <p class="hero-card__eyebrow">Описание продукта</p>
+                    <p class="hero-card__eyebrow">Коротко</p>
                     <h2><?= h($dashboard['product_overview']['title']); ?></h2>
                     <p><?= h($dashboard['product_overview']['description']); ?></p>
                     <ul class="hero-card__list">
@@ -820,6 +829,43 @@ $defaultScenario = $dashboard['scenarios'][0]['id'] ?? 'base';
             </section>
 
             <section class="content-section is-active" data-section="dashboard">
+                <section class="content-block quick-calc">
+                    <div class="block-header">
+                        <div>
+                            <h2>Операции</h2>
+                            <p>Добавляйте и редактируйте доходы и расходы.</p>
+                        </div>
+                    </div>
+                    <form class="quick-calc__form" id="operationForm">
+                        <input type="hidden" name="editIndex" value="">
+                        <label class="field">
+                            <span>Название</span>
+                            <input type="text" name="description" placeholder="Оплата клиента" required>
+                        </label>
+                        <label class="field">
+                            <span>Категория</span>
+                            <input type="text" name="category" placeholder="Подписки" required>
+                        </label>
+                        <label class="field">
+                            <span>Дата</span>
+                            <input type="date" name="date" required>
+                        </label>
+                        <label class="field">
+                            <span>Тип</span>
+                            <select name="direction" required>
+                                <option value="inflow">Доход</option>
+                                <option value="outflow">Расход</option>
+                            </select>
+                        </label>
+                        <label class="field">
+                            <span>Сумма, ₽</span>
+                            <input type="number" name="amount" min="1" step="1" placeholder="50000" required>
+                        </label>
+                        <button class="button" type="submit" id="operationSubmitButton">Добавить операцию</button>
+                    </form>
+                    <div class="quick-calc__result" id="operationFormResult">Заполните форму, чтобы добавить операцию.</div>
+                </section>
+
                 <div class="dashboard-grid dashboard-grid--six">
                     <?php foreach ($dashboard['stats'] as $stat): ?>
                         <article class="card <?= $stat['state'] === 'neutral' ? '' : 'card--' . $stat['state']; ?>">
@@ -834,7 +880,7 @@ $defaultScenario = $dashboard['scenarios'][0]['id'] ?? 'base';
                         <div class="block-header">
                             <div>
                                 <h2>Прогноз выручки</h2>
-                                <p>История показывает факт за последние месяцы, линии сценариев — будущую выручку из таблицы <code>scenario_forecasts</code>.</p>
+                                <p>История и сценарии по периодам.</p>
                             </div>
                             <div class="scenario-switcher">
                                 <?php foreach ($dashboard['scenarios'] as $index => $scenario): ?>
@@ -845,26 +891,42 @@ $defaultScenario = $dashboard['scenarios'][0]['id'] ?? 'base';
                         <div class="chart-surface">
                             <canvas id="forecastChart"></canvas>
                         </div>
+                        <div class="forecast-summary" id="forecastSummary">
+                            <article class="forecast-summary__item">
+                                <span>Ближайший прогноз</span>
+                                <strong id="forecastNearest">—</strong>
+                            </article>
+                            <article class="forecast-summary__item">
+                                <span>Средний прогноз</span>
+                                <strong id="forecastAverage">—</strong>
+                            </article>
+                            <article class="forecast-summary__item">
+                                <span>Пик прогноза</span>
+                                <strong id="forecastPeak">—</strong>
+                            </article>
+                        </div>
                     </section>
 
-                    <section class="content-block">
+                    <section class="content-block content-block--operations">
                         <h2>Последние операции</h2>
-                        <table>
+                        <table id="operationsTable">
                             <thead>
                             <tr>
                                 <th>Операция</th>
                                 <th>Категория</th>
                                 <th>Дата</th>
                                 <th class="align-right">Сумма</th>
+                                <th class="align-right">Действие</th>
                             </tr>
                             </thead>
-                            <tbody>
+                            <tbody id="operationsTableBody">
                             <?php foreach ($dashboard['transactions'] as $transaction): ?>
-                                <tr>
+                                <tr data-direction="<?= $transaction['type'] === 'positive' ? 'inflow' : 'outflow'; ?>">
                                     <td><?= h($transaction['description']); ?></td>
                                     <td><?= h($transaction['category']); ?></td>
                                     <td><?= h($transaction['date']); ?></td>
                                     <td class="amount <?= h($transaction['type']); ?>"><?= h($transaction['display_amount']); ?></td>
+                                    <td class="align-right"><button class="button button--secondary button--small" type="button" data-operation-edit>Редактировать</button></td>
                                 </tr>
                             <?php endforeach; ?>
                             </tbody>
@@ -878,7 +940,7 @@ $defaultScenario = $dashboard['scenarios'][0]['id'] ?? 'base';
                     <div class="block-header">
                         <div>
                             <h2>Бюджетные статьи</h2>
-                            <p>Лимиты берутся из <code>budget_categories</code>, факт — из таблицы <code>transactions</code> за текущий месяц.</p>
+                            <p>Лимиты и использование по текущему месяцу.</p>
                         </div>
                         <button class="button button--secondary" type="button" id="highlightBudgetButton">Подсветить риски</button>
                     </div>
