@@ -372,6 +372,18 @@ body.sidebar-collapsed .sidebar {
     transform: translateX(-100%);
 }
 
+.sidebar-toggle {
+    margin-bottom: 12px;
+}
+
+body.sidebar-collapsed .sidebar {
+    width: 0;
+    padding: 0;
+    opacity: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
 .page-header,
 .block-header,
 .scenario-card__header,
