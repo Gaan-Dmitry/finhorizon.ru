@@ -12,6 +12,18 @@ function redirectTo(string $path): never
     exit;
 }
 
+function appPath(array $query = []): string
+{
+    $path = $_SERVER['PHP_SELF'] ?? 'index.php';
+    $path = $path !== '' ? $path : 'index.php';
+
+    if ($query === []) {
+        return $path;
+    }
+
+    return $path . '?' . http_build_query($query);
+}
+
 function h(?string $value): string
 {
     return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
@@ -277,7 +289,7 @@ function handleAuth(PDO $pdo): void
         session_destroy();
         session_start();
         flash('success', 'Вы вышли из аккаунта.');
-        redirectTo('/');
+        redirectTo(appPath());
     }
 
     if ($action === 'login') {
@@ -286,18 +298,18 @@ function handleAuth(PDO $pdo): void
 
         if ($email === '' || $password === '') {
             flash('error', 'Укажите email и пароль.');
-            redirectTo('/');
+            redirectTo(appPath());
         }
 
         $user = authenticate($pdo, $email, $password);
         if (!$user) {
             flash('error', 'Неверный email или пароль.');
-            redirectTo('/');
+            redirectTo(appPath());
         }
 
         $_SESSION['user_id'] = (int) $user['id'];
         flash('success', 'Вход выполнен. Добро пожаловать в FinHorizon.');
-        redirectTo('/');
+        redirectTo(appPath());
     }
 
     if ($action === 'register') {
@@ -313,23 +325,23 @@ function handleAuth(PDO $pdo): void
         foreach (['full_name', 'email', 'company_name', 'industry', 'password', 'password_confirm'] as $field) {
             if ($payload[$field] === '') {
                 flash('error', 'Заполните все поля регистрации.');
-                redirectTo('/?auth=register');
+                redirectTo(appPath(['auth' => 'register']));
             }
         }
 
         if (!filter_var($payload['email'], FILTER_VALIDATE_EMAIL)) {
             flash('error', 'Укажите корректный email.');
-            redirectTo('/?auth=register');
+            redirectTo(appPath(['auth' => 'register']));
         }
 
         if (mb_strlen($payload['password']) < 8) {
             flash('error', 'Пароль должен содержать минимум 8 символов.');
-            redirectTo('/?auth=register');
+            redirectTo(appPath(['auth' => 'register']));
         }
 
         if ($payload['password'] !== $payload['password_confirm']) {
             flash('error', 'Пароли не совпадают.');
-            redirectTo('/?auth=register');
+            redirectTo(appPath(['auth' => 'register']));
         }
 
         try {
@@ -343,7 +355,7 @@ function handleAuth(PDO $pdo): void
             flash('error', $exception instanceof RuntimeException ? $exception->getMessage() : 'Не удалось создать аккаунт.');
         }
 
-        redirectTo('/');
+        redirectTo(appPath());
     }
 }
 
@@ -353,20 +365,28 @@ function buildDashboard(PDO $pdo, array $user): array
     $now = new DateTimeImmutable('now');
     $monthStart = $now->modify('first day of this month')->format('Y-m-01');
     $monthEnd = $now->modify('last day of this month')->format('Y-m-d');
+    $rolling30Start = $now->modify('-29 days')->format('Y-m-d');
+    $historyStart = $now->modify('first day of -3 month')->format('Y-m-01');
 
     $statsStatement = $pdo->prepare(
         'SELECT
-            SUM(CASE WHEN direction = "inflow" AND txn_date BETWEEN :month_start AND :month_end THEN amount ELSE 0 END) AS revenue_month,
-            SUM(CASE WHEN direction = "outflow" AND txn_date BETWEEN :month_start AND :month_end THEN amount ELSE 0 END) AS expenses_month,
-            SUM(CASE WHEN direction = "inflow" AND txn_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN amount ELSE 0 END) AS cash_in_30,
-            SUM(CASE WHEN direction = "outflow" AND txn_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN amount ELSE 0 END) AS cash_out_30
+            SUM(CASE WHEN direction = "inflow" AND txn_date BETWEEN ? AND ? THEN amount ELSE 0 END) AS revenue_month,
+            SUM(CASE WHEN direction = "outflow" AND txn_date BETWEEN ? AND ? THEN amount ELSE 0 END) AS expenses_month,
+            SUM(CASE WHEN direction = "inflow" AND txn_date BETWEEN ? AND ? THEN amount ELSE 0 END) AS cash_in_30,
+            SUM(CASE WHEN direction = "outflow" AND txn_date BETWEEN ? AND ? THEN amount ELSE 0 END) AS cash_out_30
          FROM transactions
-         WHERE company_id = :company_id'
+         WHERE company_id = ?'
     );
     $statsStatement->execute([
-        'month_start' => $monthStart,
-        'month_end' => $monthEnd,
-        'company_id' => $companyId,
+        $monthStart,
+        $monthEnd,
+        $monthStart,
+        $monthEnd,
+        $rolling30Start,
+        $monthEnd,
+        $rolling30Start,
+        $monthEnd,
+        $companyId,
     ]);
     $stats = $statsStatement->fetch() ?: [];
 
@@ -490,13 +510,13 @@ function buildDashboard(PDO $pdo, array $user): array
         'SELECT DATE_FORMAT(txn_date, "%Y-%m-01") AS month_bucket,
                 SUM(CASE WHEN direction = "inflow" THEN amount ELSE 0 END) AS revenue_month
          FROM transactions
-         WHERE company_id = :company_id AND txn_date >= DATE_SUB(:month_start, INTERVAL 3 MONTH)
+         WHERE company_id = ? AND txn_date >= ?
          GROUP BY month_bucket
          ORDER BY month_bucket'
     );
     $historyStatement->execute([
-        'company_id' => $companyId,
-        'month_start' => $monthStart,
+        $companyId,
+        $historyStart,
     ]);
     $historyRows = [];
     foreach ($historyStatement->fetchAll() as $row) {
@@ -519,6 +539,39 @@ function buildDashboard(PDO $pdo, array $user): array
             $chartScenarios[$row['scenario_code']][$targetIndex] = (float) $row['revenue_forecast'];
         }
     }
+    $actual = array_merge($actual, [null, null, null]);
+
+    $chartScenarios = [];
+    foreach ($scenarioRows as $row) {
+        $chartScenarios[$row['scenario_code']] ??= array_fill(0, count($chartLabels), null);
+        $forecastMonth = new DateTimeImmutable($row['forecast_month']);
+        $offset = ((int) $forecastMonth->format('Y') - (int) $now->format('Y')) * 12 + ((int) $forecastMonth->format('n') - (int) $now->format('n'));
+        $targetIndex = 3 + $offset;
+        if ($targetIndex >= 0 && $targetIndex < count($chartLabels)) {
+            $chartScenarios[$row['scenario_code']][$targetIndex] = (float) $row['revenue_forecast'];
+        }
+    }
+
+    $reports = [
+        [
+            'title' => 'P&L за текущий месяц',
+            'period' => ucfirst(fullMonthLabel($now)),
+            'status' => $profitMonth >= 0 ? 'Готов' : 'Нужна реакция',
+            'value' => sprintf('Маржа %s', formatCurrency($profitMonth)),
+        ],
+        [
+            'title' => 'Cash Flow 30 дней',
+            'period' => $now->modify('-29 days')->format('d.m') . ' — ' . $now->format('d.m'),
+            'status' => ((float) $stats['cash_in_30'] - (float) $stats['cash_out_30']) >= 0 ? 'Готов' : 'В работе',
+            'value' => sprintf('Чистый поток %s', formatCurrency((float) $stats['cash_in_30'] - (float) $stats['cash_out_30'])),
+        ],
+        [
+            'title' => 'Контроль бюджета',
+            'period' => ucfirst(fullMonthLabel($now)),
+            'status' => count(array_filter($budgetArticles, static fn (array $item): bool => $item['status'] !== 'В лимите')) > 0 ? 'В работе' : 'Готов',
+            'value' => sprintf('%d статей расходов', count($budgetArticles)),
+        ],
+    ];
 
     $reports = [
         [
@@ -636,8 +689,8 @@ $defaultScenario = $dashboard['scenarios'][0]['id'] ?? 'base';
 
         <section class="auth-panel">
             <div class="auth-tabs">
-                <a class="auth-tab <?= $authView === 'login' ? 'is-active' : ''; ?>" href="/?auth=login">Вход</a>
-                <a class="auth-tab <?= $authView === 'register' ? 'is-active' : ''; ?>" href="/?auth=register">Регистрация</a>
+                <a class="auth-tab <?= $authView === 'login' ? 'is-active' : ''; ?>" href="<?= h(appPath(['auth' => 'login'])); ?>">Вход</a>
+                <a class="auth-tab <?= $authView === 'register' ? 'is-active' : ''; ?>" href="<?= h(appPath(['auth' => 'register'])); ?>">Регистрация</a>
             </div>
 
             <?php if ($flash): ?>
@@ -649,7 +702,7 @@ $defaultScenario = $dashboard['scenarios'][0]['id'] ?? 'base';
             <?php endif; ?>
 
             <?php if ($authView === 'register'): ?>
-                <form class="auth-form" method="post">
+                <form class="auth-form" method="post" action="<?= h(appPath(['auth' => 'register'])); ?>">
                     <input type="hidden" name="action" value="register">
                     <label class="field">
                         <span>Ваше имя</span>
@@ -678,7 +731,7 @@ $defaultScenario = $dashboard['scenarios'][0]['id'] ?? 'base';
                     <button class="button button--full" type="submit">Создать аккаунт и компанию</button>
                 </form>
             <?php else: ?>
-                <form class="auth-form" method="post">
+                <form class="auth-form" method="post" action="<?= h(appPath(['auth' => 'login'])); ?>">
                     <input type="hidden" name="action" value="login">
                     <label class="field">
                         <span>Email</span>
@@ -739,7 +792,7 @@ $defaultScenario = $dashboard['scenarios'][0]['id'] ?? 'base';
                         <strong><?= h($user['full_name']); ?></strong>
                         <small><?= h($user['email']); ?></small>
                     </div>
-                    <form method="post">
+                    <form method="post" action="<?= h(appPath()); ?>">
                         <input type="hidden" name="action" value="logout">
                         <button class="button button--secondary" type="submit">Выйти</button>
                     </form>
