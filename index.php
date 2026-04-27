@@ -145,6 +145,11 @@ function registerUser(PDO $pdo, array $payload): void
     $pdo->beginTransaction();
 
     try {
+        // Получаем настройки по умолчанию из конфигурации или формы пользователя
+        $planName = $payload['plan_name'] ?? 'Growth';
+        $timezone = $payload['timezone'] ?? 'Europe/Moscow';
+        $baseCurrency = $payload['base_currency'] ?? 'RUB';
+        
         $company = $pdo->prepare(
             'INSERT INTO companies (name, industry, plan_name, timezone, base_currency, created_at)
              VALUES (:name, :industry, :plan_name, :timezone, :base_currency, NOW())'
@@ -152,9 +157,9 @@ function registerUser(PDO $pdo, array $payload): void
         $company->execute([
             'name' => $payload['company_name'],
             'industry' => $payload['industry'],
-            'plan_name' => 'Growth',
-            'timezone' => 'Europe/Moscow',
-            'base_currency' => 'RUB',
+            'plan_name' => $planName,
+            'timezone' => $timezone,
+            'base_currency' => $baseCurrency,
         ]);
         $companyId = (int) $pdo->lastInsertId();
 
@@ -192,25 +197,26 @@ function registerUser(PDO $pdo, array $payload): void
 
 function seedCompanyData(PDO $pdo, int $companyId): void
 {
-    $categories = [
-        ['Подписки SaaS', 'revenue', 0],
-        ['Консалтинг', 'revenue', 0],
-        ['Зарплаты', 'expense', 320000],
-        ['Маркетинг', 'expense', 150000],
-        ['Инфраструктура', 'expense', 95000],
-        ['Операционные расходы', 'expense', 80000],
+    // Создаём категории бюджета без жёстко заданных лимитов
+    $defaultCategories = [
+        ['Подписки SaaS', 'revenue'],
+        ['Консалтинг', 'revenue'],
+        ['Зарплаты', 'expense'],
+        ['Маркетинг', 'expense'],
+        ['Инфраструктура', 'expense'],
+        ['Операционные расходы', 'expense'],
     ];
 
     $categoryStatement = $pdo->prepare(
         'INSERT INTO budget_categories (company_id, name, category_type, monthly_limit, created_at)
          VALUES (:company_id, :name, :category_type, :monthly_limit, NOW())'
     );
-    foreach ($categories as [$name, $type, $limit]) {
+    foreach ($defaultCategories as [$name, $type]) {
         $categoryStatement->execute([
             'company_id' => $companyId,
             'name' => $name,
             'category_type' => $type,
-            'monthly_limit' => $limit,
+            'monthly_limit' => 0,
         ]);
     }
 
@@ -221,28 +227,20 @@ function seedCompanyData(PDO $pdo, int $companyId): void
         $categoryIds[$row['name']] = (int) $row['id'];
     }
 
+    // Генерируем тестовые транзакции на основе средних значений по отрасли
+    $industryAverages = getIndustryAverages($pdo, $companyId);
+    
     $transactionStatement = $pdo->prepare(
         'INSERT INTO transactions (company_id, category_id, txn_date, description, amount, direction, source_type, created_at)
          VALUES (:company_id, :category_id, :txn_date, :description, :amount, :direction, :source_type, NOW())'
     );
 
-    $transactions = [
-        ['-45 days', 'Годовая подписка клиента A', 210000, 'inflow', 'Подписки SaaS'],
-        ['-32 days', 'Консалтинг для ритейл-сети', 135000, 'inflow', 'Консалтинг'],
-        ['-28 days', 'Фонд оплаты труда', 320000, 'outflow', 'Зарплаты'],
-        ['-24 days', 'Контекстная реклама', 91000, 'outflow', 'Маркетинг'],
-        ['-16 days', 'Подписка клиента B', 240000, 'inflow', 'Подписки SaaS'],
-        ['-12 days', 'AWS / CDN / Email', 62000, 'outflow', 'Инфраструктура'],
-        ['-9 days', 'Подписка клиента C', 280000, 'inflow', 'Подписки SaaS'],
-        ['-5 days', 'ФОТ текущего месяца', 320000, 'outflow', 'Зарплаты'],
-        ['-3 days', 'Продвижение webinar funnel', 78000, 'outflow', 'Маркетинг'],
-        ['-1 days', 'Юр. и банк. сервисы', 36000, 'outflow', 'Операционные расходы'],
-    ];
+    $transactions = generateDemoTransactions($industryAverages);
 
     foreach ($transactions as [$relativeDate, $description, $amount, $direction, $categoryName]) {
         $transactionStatement->execute([
             'company_id' => $companyId,
-            'category_id' => $categoryIds[$categoryName],
+            'category_id' => $categoryIds[$categoryName] ?? null,
             'txn_date' => (new DateTimeImmutable($relativeDate))->format('Y-m-d'),
             'description' => $description,
             'amount' => $amount,
@@ -251,27 +249,173 @@ function seedCompanyData(PDO $pdo, int $companyId): void
         ]);
     }
 
+    // Генерируем прогнозы на основе расчёта роста
+    generateForecasts($pdo, $companyId);
+}
+
+function getIndustryAverages(PDO $pdo, int $companyId): array
+{
+    // Пытаемся получить средние значения по отрасли из справочника
+    // Если таблицы industry_benchmarks нет или данных нет, используем расчёт на основе существующих транзакций
+    
+    try {
+        $benchmarkStatement = $pdo->prepare(
+            'SELECT avg_revenue, avg_expense, avg_growth_rate 
+             FROM industry_benchmarks 
+             WHERE id = (SELECT industry_id FROM companies WHERE id = ?)
+             LIMIT 1'
+        );
+        $benchmarkStatement->execute([$companyId]);
+        $benchmark = $benchmarkStatement->fetch();
+        
+        if ($benchmark) {
+            return [
+                'revenue_avg' => (float) $benchmark['avg_revenue'],
+                'expense_avg' => (float) $benchmark['avg_expense'],
+                'growth_rate' => (float) $benchmark['avg_growth_rate'],
+            ];
+        }
+    } catch (\Throwable $e) {
+        // Таблица не существует - продолжаем с расчётом на основе транзакций
+    }
+    
+    // Расчитываем средние значения на основе существующих транзакций компании
+    $statsStatement = $pdo->prepare(
+        'SELECT 
+            AVG(CASE WHEN direction = "inflow" THEN amount ELSE NULL END) AS avg_revenue,
+            AVG(CASE WHEN direction = "outflow" THEN amount ELSE NULL END) AS avg_expense
+         FROM transactions
+         WHERE company_id = ?'
+    );
+    $statsStatement->execute([$companyId]);
+    $stats = $statsStatement->fetch();
+    
+    $revenueAvg = (float) ($stats['avg_revenue'] ?? 200000);
+    $expenseAvg = (float) ($stats['avg_expense'] ?? 100000);
+    
+    // Если транзакций ещё нет, используем значения по умолчанию на основе размера компании
+    if ($revenueAvg === 0.0 && $expenseAvg === 0.0) {
+        // Базовые значения для новой компании
+        $revenueAvg = 200000;
+        $expenseAvg = 100000;
+    }
+    
+    return [
+        'revenue_avg' => $revenueAvg,
+        'expense_avg' => $expenseAvg,
+        'growth_rate' => 0.08, // Дефолтный темп роста 8%
+    ];
+}
+
+function generateDemoTransactions(array $averages): array
+{
+    $revenueAvg = $averages['revenue_avg'];
+    $expenseAvg = $averages['expense_avg'];
+    
+    // Генерируем транзакции на основе средних значений компании
+    return [
+        ['-45 days', 'Подписка клиента A', (int)($revenueAvg * 0.85), 'inflow', 'Подписки SaaS'],
+        ['-32 days', 'Консалтинг проект', (int)($revenueAvg * 0.55), 'inflow', 'Консалтинг'],
+        ['-28 days', 'Фонд оплаты труда', (int)($expenseAvg * 2.1), 'outflow', 'Зарплаты'],
+        ['-24 days', 'Рекламная кампания', (int)($expenseAvg * 0.6), 'outflow', 'Маркетинг'],
+        ['-16 days', 'Подписка клиента B', (int)($revenueAvg * 0.95), 'inflow', 'Подписки SaaS'],
+        ['-12 days', 'Инфраструктура', (int)($expenseAvg * 0.4), 'outflow', 'Инфраструктура'],
+        ['-9 days', 'Подписка клиента C', (int)($revenueAvg * 1.1), 'inflow', 'Подписки SaaS'],
+        ['-5 days', 'Фонд оплаты труда', (int)($expenseAvg * 2.1), 'outflow', 'Зарплаты'],
+        ['-3 days', 'Маркетинг мероприятия', (int)($expenseAvg * 0.5), 'outflow', 'Маркетинг'],
+        ['-1 days', 'Операционные расходы', (int)($expenseAvg * 0.25), 'outflow', 'Операционные расходы'],
+    ];
+}
+
+function calculateGrowthRate(PDO $pdo, int $companyId): float
+{
+    // Формула расчёта роста: CAGR (Compound Annual Growth Rate)
+    // На основе исторических данных о выручке за последние месяцы
+    
+    $historyStatement = $pdo->prepare(
+        'SELECT DATE_FORMAT(txn_date, "%Y-%m-01") AS month_bucket,
+                SUM(CASE WHEN direction = "inflow" THEN amount ELSE 0 END) AS revenue_month
+         FROM transactions
+         WHERE company_id = ? AND direction = "inflow"
+         GROUP BY month_bucket
+         ORDER BY month_bucket DESC
+         LIMIT 6'
+    );
+    $historyStatement->execute([$companyId]);
+    $rows = $historyStatement->fetchAll();
+    
+    if (count($rows) < 2) {
+        // Если недостаточно данных, используем дефолтный темп роста 8%
+        return 0.08;
+    }
+    
+    // Считаем среднемесячный темп роста
+    $revenues = array_column($rows, 'revenue_month');
+    $revenues = array_reverse($revenues);
+    
+    $totalGrowth = 1.0;
+    for ($i = 1; $i < count($revenues); $i++) {
+        if ($revenues[$i - 1] > 0) {
+            $monthGrowth = ($revenues[$i] - $revenues[$i - 1]) / $revenues[$i - 1];
+            $totalGrowth *= (1 + $monthGrowth);
+        }
+    }
+    
+    $avgMonthlyGrowth = pow($totalGrowth, 1 / (count($revenues) - 1)) - 1;
+    
+    // Ограничиваем рост разумными пределами (-20% до +50% в месяц)
+    return max(-0.2, min(0.5, $avgMonthlyGrowth));
+}
+
+function generateForecasts(PDO $pdo, int $companyId): void
+{
+    // Получаем текущие показатели компании
+    $statsStatement = $pdo->prepare(
+        'SELECT 
+            SUM(CASE WHEN direction = "inflow" THEN amount ELSE 0 END) AS total_revenue,
+            SUM(CASE WHEN direction = "outflow" THEN amount ELSE 0 END) AS total_expenses
+         FROM transactions
+         WHERE company_id = ?'
+    );
+    $statsStatement->execute([$companyId]);
+    $stats = $statsStatement->fetch() ?: ['total_revenue' => 0, 'total_expenses' => 0];
+    
+    $currentRevenue = (float) ($stats['total_revenue'] ?? 0);
+    $currentExpenses = (float) ($stats['total_expenses'] ?? 0);
+    
+    // Рассчитываем темп роста на основе исторических данных
+    $growthRate = calculateGrowthRate($pdo, $companyId);
+    
+    // Коэффициенты для сценариев
+    $scenarios = [
+        'base' => ['Базовый', 1.0, 0.58],      // Базовый сценарий: рассчитанный рост
+        'optimistic' => ['Рост', 1.2, 0.55],   // Оптимистичный: рост на 20% выше базового
+        'stress' => ['Стресс', 0.75, 0.65],    // Стрессовый: снижение на 25%
+    ];
+    
     $scenarioStatement = $pdo->prepare(
         'INSERT INTO scenario_forecasts (company_id, scenario_code, scenario_name, forecast_month, revenue_forecast, expense_forecast, created_at)
          VALUES (:company_id, :scenario_code, :scenario_name, :forecast_month, :revenue_forecast, :expense_forecast, NOW())'
     );
-
+    
     $baseMonth = new DateTimeImmutable('first day of this month');
-    $templates = [
-        'base' => ['Базовый', [[890000, 515000], [940000, 525000], [1010000, 540000], [1085000, 560000]]],
-        'optimistic' => ['Рост', [[940000, 520000], [1025000, 535000], [1110000, 555000], [1190000, 575000]]],
-        'stress' => ['Стресс', [[770000, 540000], [730000, 545000], [710000, 550000], [695000, 560000]]],
-    ];
-
-    foreach ($templates as $code => [$name, $rows]) {
-        foreach ($rows as $index => [$revenue, $expense]) {
+    
+    foreach ($scenarios as $code => [$name, $multiplier, $expenseRatio]) {
+        $scenarioGrowthRate = $growthRate * $multiplier;
+        $baseRevenue = $currentRevenue * $multiplier;
+        
+        for ($i = 0; $i < 4; $i++) {
+            // Формула сложного процента для прогноза
+            $revenueForecast = $baseRevenue * pow(1 + $scenarioGrowthRate, $i);
+            $expenseForecast = $revenueForecast * $expenseRatio;
+            
             $scenarioStatement->execute([
                 'company_id' => $companyId,
                 'scenario_code' => $code,
                 'scenario_name' => $name,
-                'forecast_month' => $baseMonth->modify(sprintf('+%d month', $index))->format('Y-m-01'),
-                'revenue_forecast' => $revenue,
-                'expense_forecast' => $expense,
+                'forecast_month' => $baseMonth->modify(sprintf('+%d month', $i))->format('Y-m-01'),
+                'revenue_forecast' => round($revenueForecast, 2),
+                'expense_forecast' => round($expenseForecast, 2),
             ]);
         }
     }
