@@ -1,0 +1,1 @@
+Nothing should be ignored based on the provided file changes. The changes only include source files (index.php) and a config file (sql/schema.sql), which should not be added to .gitignore according to the rules.
