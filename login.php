@@ -47,18 +47,15 @@ if (isLoggedIn()) {
         .auth-logo-icon {
             width: 60px;
             height: 60px;
-            background-color: #2C3E50;
-            border-radius: 50%;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
+            display: inline-block;
             margin-bottom: 15px;
         }
         
-        .auth-logo-icon svg {
-            width: 35px;
-            height: 35px;
-            fill: white;
+        .auth-logo-icon img {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            object-fit: cover;
         }
         
         .auth-logo h1 {
@@ -120,9 +117,7 @@ if (isLoggedIn()) {
         <div class="auth-container">
             <div class="auth-logo">
                 <div class="auth-logo-icon">
-                    <svg viewBox="0 0 24 24">
-                        <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>
-                    </svg>
+                    <img src="/logo.svg" alt="Логотип ФинГоризонт">
                 </div>
                 <h1>ФинГоризонт</h1>
                 <p>Планируйте уверенно</p>

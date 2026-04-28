@@ -83,10 +83,10 @@ h1, h2, h3, h4, h5, h6 {
     overflow: hidden;
 }
 
-.logo-icon svg {
-    width: 30px;
-    height: 30px;
-    fill: var(--primary-color);
+.logo-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 
 .logo-text h1 {
