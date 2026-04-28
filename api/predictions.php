@@ -7,6 +7,11 @@
 require_once __DIR__ . '/../includes/config.php';
 
 header('Content-Type: application/json; charset=utf-8');
+ini_set('display_errors', '0');
+
+set_error_handler(function ($severity, $message, $file, $line) {
+    throw new ErrorException($message, 0, $severity, $file, $line);
+});
 
 // Проверка авторизации
 if (!isLoggedIn()) {
@@ -147,7 +152,7 @@ try {
                 INSERT INTO predictions 
                 (scenario_id, prediction_date, predicted_income, predicted_expense, 
                  predicted_balance, confidence_level, algorithm_used)
-                VALUES (?, ?, ?, ?, ?, ?, 'linear_regression_with_seasonality')
+                VALUES (?, ?, ?, ?, ?, ?, 'exponential_smoothing_with_capped_trend')
             ");
             
             foreach ($predictions as $prediction) {
