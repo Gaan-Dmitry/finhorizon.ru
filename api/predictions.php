@@ -284,15 +284,33 @@ function forecastSeries($values, $forecastMonths) {
     // Ограничение тренда для устойчивости
     $trendRate = max(-0.2, min(0.2, $trendRate));
 
+    // Старт прогноза привязываем к последнему фактическому значению,
+    // чтобы избежать резкого скачка между историей и прогнозом.
+    $lastActual = (float)$values[$n - 1];
+    $prevForecast = $lastActual;
     $forecast = [];
+
     for ($m = 1; $m <= $forecastMonths; $m++) {
-        $forecastValue = $level * pow(1 + $trendRate, $m);
-        $forecast[] = round(max(0, $forecastValue), 2);
+        // Плавно затухающий тренд: в начале шаг сильнее, дальше более консервативный
+        $trendDamping = max(0.35, 1 - (($m - 1) * 0.12));
+        $stepTrendRate = $trendRate * $trendDamping;
+
+        $rawForecast = $prevForecast * (1 + $stepTrendRate);
+
+        // Мягкое притяжение к сглаженному уровню для устойчивости
+        $reversionWeight = 0.25;
+        $forecastValue = $rawForecast + (($level - $rawForecast) * $reversionWeight);
+
+        $forecastValue = max(0, $forecastValue);
+        $forecast[] = round($forecastValue, 2);
+        $prevForecast = $forecastValue;
     }
+
+    $slope = count($forecast) > 0 ? $forecast[0] - $lastActual : 0;
 
     return [
         'values' => $forecast,
-        'slope' => round($level * $trendRate, 2)
+        'slope' => round($slope, 2)
     ];
 }
 
