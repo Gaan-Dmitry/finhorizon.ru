@@ -269,8 +269,6 @@ try {
 } catch (Throwable $e) {
     error_log("Ошибка прогнозирования: " . $e->getMessage());
     jsonResponse(['success' => false, 'error' => 'Ошибка расчета прогноза']);
-} finally {
-    restore_error_handler();
 }
 
 /**
