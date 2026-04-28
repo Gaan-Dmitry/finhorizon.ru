@@ -65,8 +65,9 @@ try {
             $n = count($incomeValues);
             $months = max(1, min(24, $months));
 
-            $incomeForecast = forecastSeries($incomeValues, $months);
-            $expenseForecast = forecastSeries($expenseValues, $months);
+            $futureMonths = max(0, $months - 1);
+            $incomeForecast = $futureMonths > 0 ? forecastSeries($incomeValues, $futureMonths) : ['values' => [], 'slope' => 0];
+            $expenseForecast = $futureMonths > 0 ? forecastSeries($expenseValues, $futureMonths) : ['values' => [], 'slope' => 0];
             
             // Расчет волатильности для определения confidence level
             $incomeStdDev = calculateStandardDeviation($incomeValues);
@@ -81,21 +82,29 @@ try {
             $lastMonth = end($historicalData)['month'];
             $lastDate = new DateTime($lastMonth . '-01');
             
-            for ($i = 1; $i <= $months; $i++) {
-                $forecastDate = clone $lastDate;
-                $forecastDate->modify("+{$i} month");
-                $forecastMonth = $forecastDate->format('Y-m');
-                
-                // Прогнозируемые значения с учетом сглаживания и ограниченного тренда
-                $predictedIncome = max(0, $incomeForecast['values'][$i - 1]);
-                $predictedExpense = max(0, $expenseForecast['values'][$i - 1]);
+            for ($i = 0; $i < $months; $i++) {
+                if ($i === 0) {
+                    // Первая точка прогноза = последний фактический месяц
+                    $forecastDate = clone $lastDate;
+                    $forecastMonth = $forecastDate->format('Y-m');
+                    $predictedIncome = max(0, (float)$incomeValues[$n - 1]);
+                    $predictedExpense = max(0, (float)$expenseValues[$n - 1]);
+                } else {
+                    $forecastDate = clone $lastDate;
+                    $forecastDate->modify("+{$i} month");
+                    $forecastMonth = $forecastDate->format('Y-m');
+
+                    // Прогнозируемые значения для будущих месяцев
+                    $predictedIncome = max(0, $incomeForecast['values'][$i - 1] ?? 0);
+                    $predictedExpense = max(0, $expenseForecast['values'][$i - 1] ?? 0);
+                }
                 
                 // Корректировка на сезонность (если есть данные за тот же месяц в прошлом)
                 $sameMonthInHistory = array_filter($historicalData, function($item) use ($forecastDate) {
                     return date('m', strtotime($item['month'] . '-01')) === $forecastDate->format('m');
                 });
                 
-                if (!empty($sameMonthInHistory)) {
+                if ($i > 0 && !empty($sameMonthInHistory)) {
                     if ($avgIncome > 0) {
                         $seasonalFactorIncome = array_sum(array_column($sameMonthInHistory, 'income')) /
                                                (count($sameMonthInHistory) * $avgIncome);
