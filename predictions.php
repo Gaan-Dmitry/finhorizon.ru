@@ -367,7 +367,7 @@ $allScenarios = $stmt->fetchAll();
                         },
                         {
                             label: 'Доходы (прогноз)',
-                            data: incomeData.map((v, i) => i > splitIndex ? v : null),
+                            data: incomeData.map((v, i) => i >= splitIndex ? v : null),
                             borderColor: '#27AE60',
                             borderDash: [5, 5],
                             fill: false,
@@ -383,7 +383,7 @@ $allScenarios = $stmt->fetchAll();
                         },
                         {
                             label: 'Расходы (прогноз)',
-                            data: expenseData.map((v, i) => i > splitIndex ? v : null),
+                            data: expenseData.map((v, i) => i >= splitIndex ? v : null),
                             borderColor: '#E74C3C',
                             borderDash: [5, 5],
                             fill: false,
