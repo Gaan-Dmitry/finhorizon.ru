@@ -61,8 +61,7 @@ try {
             $predictions = [];
             $incomeValues = array_column($historicalData, 'income');
             $expenseValues = array_column($historicalData, 'expense');
-            
-            // Расчет линейного тренда (метод наименьших квадратов)
+
             $n = count($incomeValues);
             $months = max(1, min(24, $months));
             $sumX = array_sum(range(0, $n - 1));
@@ -102,14 +101,22 @@ try {
             $lastMonth = end($historicalData)['month'];
             $lastDate = new DateTime($lastMonth . '-01');
             
-            for ($i = 1; $i <= $months; $i++) {
-                $forecastDate = clone $lastDate;
-                $forecastDate->modify("+{$i} month");
-                $forecastMonth = $forecastDate->format('Y-m');
-                
-                // Прогнозируемые значения с учетом тренда
-                $predictedIncome = max(0, $interceptIncome + $slopeIncome * ($n + $i - 1));
-                $predictedExpense = max(0, $interceptExpense + $slopeExpense * ($n + $i - 1));
+            for ($i = 0; $i < $months; $i++) {
+                if ($i === 0) {
+                    // Первая точка прогноза = последний фактический месяц
+                    $forecastDate = clone $lastDate;
+                    $forecastMonth = $forecastDate->format('Y-m');
+                    $predictedIncome = max(0, (float)$incomeValues[$n - 1]);
+                    $predictedExpense = max(0, (float)$expenseValues[$n - 1]);
+                } else {
+                    $forecastDate = clone $lastDate;
+                    $forecastDate->modify("+{$i} month");
+                    $forecastMonth = $forecastDate->format('Y-m');
+
+                    // Прогнозируемые значения для будущих месяцев
+                    $predictedIncome = max(0, $incomeForecast['values'][$i - 1] ?? 0);
+                    $predictedExpense = max(0, $expenseForecast['values'][$i - 1] ?? 0);
+                }
                 
                 // Корректировка на сезонность (если есть данные за тот же месяц в прошлом)
                 $sameMonthInHistory = array_filter($historicalData, function($item) use ($forecastDate) {
@@ -155,7 +162,7 @@ try {
                 INSERT INTO predictions 
                 (scenario_id, prediction_date, predicted_income, predicted_expense, 
                  predicted_balance, confidence_level, algorithm_used)
-                VALUES (?, ?, ?, ?, ?, ?, 'linear_regression_with_seasonality')
+                VALUES (?, ?, ?, ?, ?, ?, 'exponential_smoothing_with_capped_trend')
             ");
             
             foreach ($predictions as $prediction) {
@@ -176,10 +183,10 @@ try {
                     'historical' => $historicalData,
                     'predictions' => $predictions,
                     'trend' => [
-                        'income_slope' => round($slopeIncome, 2),
-                        'expense_slope' => round($slopeExpense, 2),
-                        'income_trend' => $slopeIncome > 0 ? 'growth' : ($slopeIncome < 0 ? 'decline' : 'stable'),
-                        'expense_trend' => $slopeExpense > 0 ? 'growth' : ($slopeExpense < 0 ? 'decline' : 'stable')
+                        'income_slope' => round($incomeForecast['slope'], 2),
+                        'expense_slope' => round($expenseForecast['slope'], 2),
+                        'income_trend' => $incomeForecast['slope'] > 0 ? 'growth' : ($incomeForecast['slope'] < 0 ? 'decline' : 'stable'),
+                        'expense_trend' => $expenseForecast['slope'] > 0 ? 'growth' : ($expenseForecast['slope'] < 0 ? 'decline' : 'stable')
                     ]
                 ]
             ]);
@@ -273,4 +280,83 @@ function calculateStandardDeviation($values) {
     }
     
     return sqrt($variance / ($n - 1));
+}
+
+/**
+ * Прогноз ряда: экспоненциальное сглаживание + ограниченный медианный тренд
+ */
+function forecastSeries($values, $forecastMonths) {
+    $n = count($values);
+    $alpha = 0.45; // вес последних наблюдений
+
+    // Базовый уровень через экспоненциальное сглаживание
+    $level = (float)$values[0];
+    for ($i = 1; $i < $n; $i++) {
+        $level = $alpha * (float)$values[$i] + (1 - $alpha) * $level;
+    }
+
+    // Тренд: медиана относительных изменений за последние 6 периодов
+    $growthRates = [];
+    $startIndex = max(1, $n - 6);
+    for ($i = $startIndex; $i < $n; $i++) {
+        $prev = (float)$values[$i - 1];
+        $curr = (float)$values[$i];
+
+        if ($prev > 0) {
+            $growthRates[] = ($curr - $prev) / $prev;
+        }
+    }
+
+    $trendRate = median($growthRates);
+
+    // Ограничение тренда для устойчивости
+    $trendRate = max(-0.2, min(0.2, $trendRate));
+
+    // Старт прогноза привязываем к последнему фактическому значению,
+    // чтобы избежать резкого скачка между историей и прогнозом.
+    $lastActual = (float)$values[$n - 1];
+    $prevForecast = $lastActual;
+    $forecast = [];
+
+    for ($m = 1; $m <= $forecastMonths; $m++) {
+        // Плавно затухающий тренд: в начале шаг сильнее, дальше более консервативный
+        $trendDamping = max(0.35, 1 - (($m - 1) * 0.12));
+        $stepTrendRate = $trendRate * $trendDamping;
+
+        $rawForecast = $prevForecast * (1 + $stepTrendRate);
+
+        // Мягкое притяжение к сглаженному уровню для устойчивости
+        $reversionWeight = 0.25;
+        $forecastValue = $rawForecast + (($level - $rawForecast) * $reversionWeight);
+
+        $forecastValue = max(0, $forecastValue);
+        $forecast[] = round($forecastValue, 2);
+        $prevForecast = $forecastValue;
+    }
+
+    $slope = count($forecast) > 0 ? $forecast[0] - $lastActual : 0;
+
+    return [
+        'values' => $forecast,
+        'slope' => round($slope, 2)
+    ];
+}
+
+/**
+ * Медиана массива чисел
+ */
+function median($values) {
+    if (empty($values)) {
+        return 0;
+    }
+
+    sort($values, SORT_NUMERIC);
+    $count = count($values);
+    $middle = (int) floor($count / 2);
+
+    if ($count % 2 === 0) {
+        return ($values[$middle - 1] + $values[$middle]) / 2;
+    }
+
+    return $values[$middle];
 }
