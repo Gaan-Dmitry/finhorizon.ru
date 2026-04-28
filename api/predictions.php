@@ -86,6 +86,10 @@ try {
 
             $incomeR2 = calculateTrendR2($incomeValues, $incomeTrend['slope'], $incomeTrend['intercept']);
             $expenseR2 = calculateTrendR2($expenseValues, $expenseTrend['slope'], $expenseTrend['intercept']);
+
+            $recentWindow = min(3, $n);
+            $recentIncomeBaseline = array_sum(array_slice($incomeValues, -$recentWindow)) / $recentWindow;
+            $recentExpenseBaseline = array_sum(array_slice($expenseValues, -$recentWindow)) / $recentWindow;
             
             // Генерация прогнозов на будущие месяцы
             $lastMonth = end($historicalData)['month'];
@@ -106,8 +110,21 @@ try {
                 $incomeSeasonalFactor = $incomeSeasonality[$monthNum] ?? 1.0;
                 $expenseSeasonalFactor = $expenseSeasonality[$monthNum] ?? 1.0;
 
-                $predictedIncome = max(0, $incomeByTrend * $incomeSeasonalFactor);
-                $predictedExpense = max(0, $expenseByTrend * $expenseSeasonalFactor);
+                $predictedIncome = $incomeByTrend * $incomeSeasonalFactor;
+                $predictedExpense = $expenseByTrend * $expenseSeasonalFactor;
+
+                // Если тренд уводит значение в отрицательную зону — используем
+                // базу последних месяцев, чтобы не "обнулять" прогноз расходов/доходов.
+                if ($predictedIncome <= 0 && $recentIncomeBaseline > 0) {
+                    $predictedIncome = $recentIncomeBaseline * $incomeSeasonalFactor;
+                }
+
+                if ($predictedExpense <= 0 && $recentExpenseBaseline > 0) {
+                    $predictedExpense = $recentExpenseBaseline * $expenseSeasonalFactor;
+                }
+
+                $predictedIncome = max(0, $predictedIncome);
+                $predictedExpense = max(0, $predictedExpense);
                 
                 $predictedBalance = $predictedIncome - $predictedExpense;
                 
