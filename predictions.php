@@ -56,9 +56,7 @@ $allScenarios = $stmt->fetchAll();
     <header class="header">
         <div class="logo">
             <div class="logo-icon">
-                <svg viewBox="0 0 24 24">
-                    <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>
-                </svg>
+                <img src="/logo.svg" alt="Логотип ФинГоризонт">
             </div>
             <div class="logo-text">
                 <h1>ФинГоризонт</h1>
@@ -367,7 +365,7 @@ $allScenarios = $stmt->fetchAll();
                         },
                         {
                             label: 'Доходы (прогноз)',
-                            data: incomeData.map((v, i) => i > splitIndex ? v : null),
+                            data: incomeData.map((v, i) => i >= splitIndex ? v : null),
                             borderColor: '#27AE60',
                             borderDash: [5, 5],
                             fill: false,
@@ -383,7 +381,7 @@ $allScenarios = $stmt->fetchAll();
                         },
                         {
                             label: 'Расходы (прогноз)',
-                            data: expenseData.map((v, i) => i > splitIndex ? v : null),
+                            data: expenseData.map((v, i) => i >= splitIndex ? v : null),
                             borderColor: '#E74C3C',
                             borderDash: [5, 5],
                             fill: false,
