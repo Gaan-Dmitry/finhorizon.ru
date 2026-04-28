@@ -115,13 +115,17 @@ try {
                 });
                 
                 if (!empty($sameMonthInHistory)) {
-                    $seasonalFactorIncome = array_sum(array_column($sameMonthInHistory, 'income')) / 
-                                           (count($sameMonthInHistory) * $avgIncome);
-                    $seasonalFactorExpense = array_sum(array_column($sameMonthInHistory, 'expense')) / 
-                                            (count($sameMonthInHistory) * $avgExpense);
-                    
-                    $predictedIncome *= $seasonalFactorIncome;
-                    $predictedExpense *= $seasonalFactorExpense;
+                    if ($avgIncome > 0) {
+                        $seasonalFactorIncome = array_sum(array_column($sameMonthInHistory, 'income')) /
+                                               (count($sameMonthInHistory) * $avgIncome);
+                        $predictedIncome *= $seasonalFactorIncome;
+                    }
+
+                    if ($avgExpense > 0) {
+                        $seasonalFactorExpense = array_sum(array_column($sameMonthInHistory, 'expense')) /
+                                                (count($sameMonthInHistory) * $avgExpense);
+                        $predictedExpense *= $seasonalFactorExpense;
+                    }
                 }
                 
                 $predictedBalance = $predictedIncome - $predictedExpense;
@@ -188,8 +192,28 @@ try {
                 jsonResponse(['success' => false, 'error' => 'Не указан сценарий']);
             }
             
+            // Проверка прав на сценарий
+            $stmt = $pdo->prepare("SELECT id FROM scenarios WHERE id = ? AND user_id = ?");
+            $stmt->execute([$scenarioId, $_SESSION['user_id']]);
+            $scenario = $stmt->fetch();
+
+            if (!$scenario) {
+                jsonResponse(['success' => false, 'error' => 'Сценарий не найден']);
+            }
+
             $stmt = $pdo->prepare("
-                SELECT * FROM predictions 
+                SELECT
+                    id,
+                    scenario_id,
+                    DATE_FORMAT(prediction_date, '%Y-%m') as month,
+                    prediction_date,
+                    predicted_income,
+                    predicted_expense,
+                    predicted_balance,
+                    confidence_level,
+                    algorithm_used,
+                    created_at
+                FROM predictions
                 WHERE scenario_id = ?
                 ORDER BY prediction_date ASC
             ");
