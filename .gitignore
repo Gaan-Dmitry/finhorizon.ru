@@ -1,0 +1,41 @@
+```gitignore
+# Compiled and build artifacts
+*.pyc
+__pycache__/
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.a
+*.out
+
+# Dependencies
+vendor/
+node_modules/
+composer.lock
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Editors
+.vscode/
+.idea/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Distribution / Build
+dist/
+build/
+target/
+```
