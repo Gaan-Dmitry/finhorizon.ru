@@ -5,10 +5,10 @@
  */
 
 // Настройки базы данных
-define('DB_HOST', 'localhost');
-define('DB_NAME', 'finhorizon_db');
-define('DB_USER', 'root');
-define('DB_PASS', '');
+define('DB_HOST', '127.0.0.1');
+define('DB_NAME', 'u3299512_finhorizon');
+define('DB_USER', 'u3299512_AdminFin');
+define('DB_PASS', 'pM4iW4sM2daN9dK4');
 define('DB_CHARSET', 'utf8mb4');
 
 // Настройки приложения
