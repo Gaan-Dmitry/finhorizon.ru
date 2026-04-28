@@ -57,13 +57,14 @@ try {
                 ]);
             }
             
-            // Расчет прогноза методом скользящего среднего с трендом
+            // Расчет прогноза методом линейной регрессии с сезонной корректировкой
             $predictions = [];
             $incomeValues = array_column($historicalData, 'income');
             $expenseValues = array_column($historicalData, 'expense');
             
             // Расчет линейного тренда (метод наименьших квадратов)
             $n = count($incomeValues);
+            $months = max(1, min(24, $months));
             $sumX = array_sum(range(0, $n - 1));
             $sumYIncome = array_sum($incomeValues);
             $sumYExpense = array_sum($expenseValues);
@@ -81,10 +82,11 @@ try {
             }
             
             // Коэффициенты тренда
-            $slopeIncome = ($n * $sumXYIncome - $sumX * $sumYIncome) / ($n * $sumX2 - $sumX * $sumX);
+            $denominator = ($n * $sumX2 - $sumX * $sumX);
+            $slopeIncome = $denominator != 0 ? ($n * $sumXYIncome - $sumX * $sumYIncome) / $denominator : 0;
             $interceptIncome = ($sumYIncome - $slopeIncome * $sumX) / $n;
             
-            $slopeExpense = ($n * $sumXYExpense - $sumX * $sumYExpense) / ($n * $sumX2 - $sumX * $sumX);
+            $slopeExpense = $denominator != 0 ? ($n * $sumXYExpense - $sumX * $sumYExpense) / $denominator : 0;
             $interceptExpense = ($sumYExpense - $slopeExpense * $sumX) / $n;
             
             // Расчет волатильности для определения confidence level
@@ -115,13 +117,17 @@ try {
                 });
                 
                 if (!empty($sameMonthInHistory)) {
-                    $seasonalFactorIncome = array_sum(array_column($sameMonthInHistory, 'income')) / 
-                                           (count($sameMonthInHistory) * $avgIncome);
-                    $seasonalFactorExpense = array_sum(array_column($sameMonthInHistory, 'expense')) / 
-                                            (count($sameMonthInHistory) * $avgExpense);
-                    
-                    $predictedIncome *= $seasonalFactorIncome;
-                    $predictedExpense *= $seasonalFactorExpense;
+                    if ($avgIncome > 0) {
+                        $seasonalFactorIncome = array_sum(array_column($sameMonthInHistory, 'income')) /
+                                               (count($sameMonthInHistory) * $avgIncome);
+                        $predictedIncome *= $seasonalFactorIncome;
+                    }
+
+                    if ($avgExpense > 0) {
+                        $seasonalFactorExpense = array_sum(array_column($sameMonthInHistory, 'expense')) /
+                                                (count($sameMonthInHistory) * $avgExpense);
+                        $predictedExpense *= $seasonalFactorExpense;
+                    }
                 }
                 
                 $predictedBalance = $predictedIncome - $predictedExpense;
@@ -188,8 +194,28 @@ try {
                 jsonResponse(['success' => false, 'error' => 'Не указан сценарий']);
             }
             
+            // Проверка прав на сценарий
+            $stmt = $pdo->prepare("SELECT id FROM scenarios WHERE id = ? AND user_id = ?");
+            $stmt->execute([$scenarioId, $_SESSION['user_id']]);
+            $scenario = $stmt->fetch();
+
+            if (!$scenario) {
+                jsonResponse(['success' => false, 'error' => 'Сценарий не найден']);
+            }
+
             $stmt = $pdo->prepare("
-                SELECT * FROM predictions 
+                SELECT
+                    id,
+                    scenario_id,
+                    DATE_FORMAT(prediction_date, '%Y-%m') as month,
+                    prediction_date,
+                    predicted_income,
+                    predicted_expense,
+                    predicted_balance,
+                    confidence_level,
+                    algorithm_used,
+                    created_at
+                FROM predictions
                 WHERE scenario_id = ?
                 ORDER BY prediction_date ASC
             ");
@@ -228,6 +254,9 @@ try {
 } catch (PDOException $e) {
     error_log("Ошибка БД: " . $e->getMessage());
     jsonResponse(['success' => false, 'error' => 'Ошибка базы данных']);
+} catch (Throwable $e) {
+    error_log("Ошибка прогнозирования: " . $e->getMessage());
+    jsonResponse(['success' => false, 'error' => 'Ошибка расчета прогноза']);
 }
 
 /**
