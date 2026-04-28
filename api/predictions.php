@@ -57,17 +57,36 @@ try {
                 ]);
             }
             
-            // Расчет прогноза методом экспоненциального сглаживания + ограниченного тренда
+            // Расчет прогноза методом линейной регрессии с сезонной корректировкой
             $predictions = [];
             $incomeValues = array_column($historicalData, 'income');
             $expenseValues = array_column($historicalData, 'expense');
 
             $n = count($incomeValues);
             $months = max(1, min(24, $months));
-
-            $futureMonths = max(0, $months - 1);
-            $incomeForecast = $futureMonths > 0 ? forecastSeries($incomeValues, $futureMonths) : ['values' => [], 'slope' => 0];
-            $expenseForecast = $futureMonths > 0 ? forecastSeries($expenseValues, $futureMonths) : ['values' => [], 'slope' => 0];
+            $sumX = array_sum(range(0, $n - 1));
+            $sumYIncome = array_sum($incomeValues);
+            $sumYExpense = array_sum($expenseValues);
+            $sumXYIncome = 0;
+            $sumXYExpense = 0;
+            $sumX2 = 0;
+            
+            foreach ($incomeValues as $i => $value) {
+                $sumXYIncome += $i * $value;
+                $sumX2 += $i * $i;
+            }
+            
+            foreach ($expenseValues as $i => $value) {
+                $sumXYExpense += $i * $value;
+            }
+            
+            // Коэффициенты тренда
+            $denominator = ($n * $sumX2 - $sumX * $sumX);
+            $slopeIncome = $denominator != 0 ? ($n * $sumXYIncome - $sumX * $sumYIncome) / $denominator : 0;
+            $interceptIncome = ($sumYIncome - $slopeIncome * $sumX) / $n;
+            
+            $slopeExpense = $denominator != 0 ? ($n * $sumXYExpense - $sumX * $sumYExpense) / $denominator : 0;
+            $interceptExpense = ($sumYExpense - $slopeExpense * $sumX) / $n;
             
             // Расчет волатильности для определения confidence level
             $incomeStdDev = calculateStandardDeviation($incomeValues);
@@ -104,7 +123,7 @@ try {
                     return date('m', strtotime($item['month'] . '-01')) === $forecastDate->format('m');
                 });
                 
-                if ($i > 0 && !empty($sameMonthInHistory)) {
+                if (!empty($sameMonthInHistory)) {
                     if ($avgIncome > 0) {
                         $seasonalFactorIncome = array_sum(array_column($sameMonthInHistory, 'income')) /
                                                (count($sameMonthInHistory) * $avgIncome);
