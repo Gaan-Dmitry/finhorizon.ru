@@ -57,35 +57,16 @@ try {
                 ]);
             }
             
-            // Расчет прогноза методом скользящего среднего с трендом
+            // Расчет прогноза методом экспоненциального сглаживания + ограниченного тренда
             $predictions = [];
             $incomeValues = array_column($historicalData, 'income');
             $expenseValues = array_column($historicalData, 'expense');
-            
-            // Расчет линейного тренда (метод наименьших квадратов)
+
             $n = count($incomeValues);
-            $sumX = array_sum(range(0, $n - 1));
-            $sumYIncome = array_sum($incomeValues);
-            $sumYExpense = array_sum($expenseValues);
-            $sumXYIncome = 0;
-            $sumXYExpense = 0;
-            $sumX2 = 0;
-            
-            foreach ($incomeValues as $i => $value) {
-                $sumXYIncome += $i * $value;
-                $sumX2 += $i * $i;
-            }
-            
-            foreach ($expenseValues as $i => $value) {
-                $sumXYExpense += $i * $value;
-            }
-            
-            // Коэффициенты тренда
-            $slopeIncome = ($n * $sumXYIncome - $sumX * $sumYIncome) / ($n * $sumX2 - $sumX * $sumX);
-            $interceptIncome = ($sumYIncome - $slopeIncome * $sumX) / $n;
-            
-            $slopeExpense = ($n * $sumXYExpense - $sumX * $sumYExpense) / ($n * $sumX2 - $sumX * $sumX);
-            $interceptExpense = ($sumYExpense - $slopeExpense * $sumX) / $n;
+            $months = max(1, min(24, $months));
+
+            $incomeForecast = forecastSeries($incomeValues, $months);
+            $expenseForecast = forecastSeries($expenseValues, $months);
             
             // Расчет волатильности для определения confidence level
             $incomeStdDev = calculateStandardDeviation($incomeValues);
@@ -105,9 +86,9 @@ try {
                 $forecastDate->modify("+{$i} month");
                 $forecastMonth = $forecastDate->format('Y-m');
                 
-                // Прогнозируемые значения с учетом тренда
-                $predictedIncome = max(0, $interceptIncome + $slopeIncome * ($n + $i - 1));
-                $predictedExpense = max(0, $interceptExpense + $slopeExpense * ($n + $i - 1));
+                // Прогнозируемые значения с учетом сглаживания и ограниченного тренда
+                $predictedIncome = max(0, $incomeForecast['values'][$i - 1]);
+                $predictedExpense = max(0, $expenseForecast['values'][$i - 1]);
                 
                 // Корректировка на сезонность (если есть данные за тот же месяц в прошлом)
                 $sameMonthInHistory = array_filter($historicalData, function($item) use ($forecastDate) {
@@ -153,7 +134,7 @@ try {
                 INSERT INTO predictions 
                 (scenario_id, prediction_date, predicted_income, predicted_expense, 
                  predicted_balance, confidence_level, algorithm_used)
-                VALUES (?, ?, ?, ?, ?, ?, 'linear_regression_with_seasonality')
+                VALUES (?, ?, ?, ?, ?, ?, 'exponential_smoothing_with_capped_trend')
             ");
             
             foreach ($predictions as $prediction) {
@@ -174,10 +155,10 @@ try {
                     'historical' => $historicalData,
                     'predictions' => $predictions,
                     'trend' => [
-                        'income_slope' => round($slopeIncome, 2),
-                        'expense_slope' => round($slopeExpense, 2),
-                        'income_trend' => $slopeIncome > 0 ? 'growth' : ($slopeIncome < 0 ? 'decline' : 'stable'),
-                        'expense_trend' => $slopeExpense > 0 ? 'growth' : ($slopeExpense < 0 ? 'decline' : 'stable')
+                        'income_slope' => round($incomeForecast['slope'], 2),
+                        'expense_slope' => round($expenseForecast['slope'], 2),
+                        'income_trend' => $incomeForecast['slope'] > 0 ? 'growth' : ($incomeForecast['slope'] < 0 ? 'decline' : 'stable'),
+                        'expense_trend' => $expenseForecast['slope'] > 0 ? 'growth' : ($expenseForecast['slope'] < 0 ? 'decline' : 'stable')
                     ]
                 ]
             ]);
@@ -271,4 +252,65 @@ function calculateStandardDeviation($values) {
     }
     
     return sqrt($variance / ($n - 1));
+}
+
+/**
+ * Прогноз ряда: экспоненциальное сглаживание + ограниченный медианный тренд
+ */
+function forecastSeries($values, $forecastMonths) {
+    $n = count($values);
+    $alpha = 0.45; // вес последних наблюдений
+
+    // Базовый уровень через экспоненциальное сглаживание
+    $level = (float)$values[0];
+    for ($i = 1; $i < $n; $i++) {
+        $level = $alpha * (float)$values[$i] + (1 - $alpha) * $level;
+    }
+
+    // Тренд: медиана относительных изменений за последние 6 периодов
+    $growthRates = [];
+    $startIndex = max(1, $n - 6);
+    for ($i = $startIndex; $i < $n; $i++) {
+        $prev = (float)$values[$i - 1];
+        $curr = (float)$values[$i];
+
+        if ($prev > 0) {
+            $growthRates[] = ($curr - $prev) / $prev;
+        }
+    }
+
+    $trendRate = median($growthRates);
+
+    // Ограничение тренда для устойчивости
+    $trendRate = max(-0.2, min(0.2, $trendRate));
+
+    $forecast = [];
+    for ($m = 1; $m <= $forecastMonths; $m++) {
+        $forecastValue = $level * pow(1 + $trendRate, $m);
+        $forecast[] = round(max(0, $forecastValue), 2);
+    }
+
+    return [
+        'values' => $forecast,
+        'slope' => round($level * $trendRate, 2)
+    ];
+}
+
+/**
+ * Медиана массива чисел
+ */
+function median($values) {
+    if (empty($values)) {
+        return 0;
+    }
+
+    sort($values, SORT_NUMERIC);
+    $count = count($values);
+    $middle = (int) floor($count / 2);
+
+    if ($count % 2 === 0) {
+        return ($values[$middle - 1] + $values[$middle]) / 2;
+    }
+
+    return $values[$middle];
 }
