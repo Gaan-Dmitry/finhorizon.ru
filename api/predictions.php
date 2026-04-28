@@ -7,6 +7,11 @@
 require_once '../includes/config.php';
 
 header('Content-Type: application/json; charset=utf-8');
+ini_set('display_errors', '0');
+
+set_error_handler(function ($severity, $message, $file, $line) {
+    throw new ErrorException($message, 0, $severity, $file, $line);
+});
 
 // Проверка авторизации
 if (!isLoggedIn()) {
@@ -261,6 +266,11 @@ try {
 } catch (PDOException $e) {
     error_log("Ошибка БД: " . $e->getMessage());
     jsonResponse(['success' => false, 'error' => 'Ошибка базы данных']);
+} catch (Throwable $e) {
+    error_log("Ошибка прогнозирования: " . $e->getMessage());
+    jsonResponse(['success' => false, 'error' => 'Ошибка расчета прогноза']);
+} finally {
+    restore_error_handler();
 }
 
 /**
