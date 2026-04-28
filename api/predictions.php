@@ -4,7 +4,7 @@
  * Использует исторические данные для построения прогнозов
  */
 
-require_once '../includes/config.php';
+require_once __DIR__ . '/../includes/config.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -57,44 +57,30 @@ try {
                 ]);
             }
             
-            // Расчет прогноза методом скользящего среднего с трендом
+            // Новый расчет прогноза: линейная регрессия + сезонность + волатильность
             $predictions = [];
-            $incomeValues = array_column($historicalData, 'income');
-            $expenseValues = array_column($historicalData, 'expense');
-            
-            // Расчет линейного тренда (метод наименьших квадратов)
-            $n = count($incomeValues);
-            $sumX = array_sum(range(0, $n - 1));
-            $sumYIncome = array_sum($incomeValues);
-            $sumYExpense = array_sum($expenseValues);
-            $sumXYIncome = 0;
-            $sumXYExpense = 0;
-            $sumX2 = 0;
-            
-            foreach ($incomeValues as $i => $value) {
-                $sumXYIncome += $i * $value;
-                $sumX2 += $i * $i;
-            }
-            
-            foreach ($expenseValues as $i => $value) {
-                $sumXYExpense += $i * $value;
-            }
-            
-            // Коэффициенты тренда
-            $slopeIncome = ($n * $sumXYIncome - $sumX * $sumYIncome) / ($n * $sumX2 - $sumX * $sumX);
-            $interceptIncome = ($sumYIncome - $slopeIncome * $sumX) / $n;
-            
-            $slopeExpense = ($n * $sumXYExpense - $sumX * $sumYExpense) / ($n * $sumX2 - $sumX * $sumX);
-            $interceptExpense = ($sumYExpense - $slopeExpense * $sumX) / $n;
-            
-            // Расчет волатильности для определения confidence level
-            $incomeStdDev = calculateStandardDeviation($incomeValues);
-            $expenseStdDev = calculateStandardDeviation($expenseValues);
+            $months = max(1, min(24, $months));
+            $n = count($historicalData);
+
+            $incomeValues = array_map('floatval', array_column($historicalData, 'income'));
+            $expenseValues = array_map('floatval', array_column($historicalData, 'expense'));
+
+            $incomeTrend = calculateLinearTrend($incomeValues);
+            $expenseTrend = calculateLinearTrend($expenseValues);
+
             $avgIncome = array_sum($incomeValues) / $n;
             $avgExpense = array_sum($expenseValues) / $n;
-            
+            $incomeStdDev = calculateStandardDeviation($incomeValues);
+            $expenseStdDev = calculateStandardDeviation($expenseValues);
+
             $incomeVariation = $avgIncome > 0 ? $incomeStdDev / $avgIncome : 1;
             $expenseVariation = $avgExpense > 0 ? $expenseStdDev / $avgExpense : 1;
+
+            $incomeSeasonality = buildSeasonalityMap($historicalData, 'income', $avgIncome);
+            $expenseSeasonality = buildSeasonalityMap($historicalData, 'expense', $avgExpense);
+
+            $incomeR2 = calculateTrendR2($incomeValues, $incomeTrend['slope'], $incomeTrend['intercept']);
+            $expenseR2 = calculateTrendR2($expenseValues, $expenseTrend['slope'], $expenseTrend['intercept']);
             
             // Генерация прогнозов на будущие месяцы
             $lastMonth = end($historicalData)['month'];
@@ -105,32 +91,27 @@ try {
                 $forecastDate->modify("+{$i} month");
                 $forecastMonth = $forecastDate->format('Y-m');
                 
-                // Прогнозируемые значения с учетом тренда
-                $predictedIncome = max(0, $interceptIncome + $slopeIncome * ($n + $i - 1));
-                $predictedExpense = max(0, $interceptExpense + $slopeExpense * ($n + $i - 1));
-                
-                // Корректировка на сезонность (если есть данные за тот же месяц в прошлом)
-                $sameMonthInHistory = array_filter($historicalData, function($item) use ($forecastDate) {
-                    return date('m', strtotime($item['month'] . '-01')) === $forecastDate->format('m');
-                });
-                
-                if (!empty($sameMonthInHistory)) {
-                    $seasonalFactorIncome = array_sum(array_column($sameMonthInHistory, 'income')) / 
-                                           (count($sameMonthInHistory) * $avgIncome);
-                    $seasonalFactorExpense = array_sum(array_column($sameMonthInHistory, 'expense')) / 
-                                            (count($sameMonthInHistory) * $avgExpense);
-                    
-                    $predictedIncome *= $seasonalFactorIncome;
-                    $predictedExpense *= $seasonalFactorExpense;
-                }
+                $monthNum = (int)$forecastDate->format('n');
+
+                // Тренд по регрессии
+                $incomeByTrend = $incomeTrend['intercept'] + $incomeTrend['slope'] * ($n + $i - 1);
+                $expenseByTrend = $expenseTrend['intercept'] + $expenseTrend['slope'] * ($n + $i - 1);
+
+                // Сезонная корректировка
+                $incomeSeasonalFactor = $incomeSeasonality[$monthNum] ?? 1.0;
+                $expenseSeasonalFactor = $expenseSeasonality[$monthNum] ?? 1.0;
+
+                $predictedIncome = max(0, $incomeByTrend * $incomeSeasonalFactor);
+                $predictedExpense = max(0, $expenseByTrend * $expenseSeasonalFactor);
                 
                 $predictedBalance = $predictedIncome - $predictedExpense;
                 
-                // Расчет уровня доверия (confidence level)
-                // Чем больше история и меньше волатильность, тем выше доверие
+                // Уровень доверия: больше истории + меньше волатильность + устойчивее тренд (R²)
                 $baseConfidence = min(95, 50 + ($n * 5));
                 $volatilityPenalty = (($incomeVariation + $expenseVariation) / 2) * 30;
-                $confidenceLevel = max(30, min(95, $baseConfidence - $volatilityPenalty));
+                $modelQualityBonus = (($incomeR2 + $expenseR2) / 2) * 10;
+                $horizonPenalty = $i * 1.5;
+                $confidenceLevel = max(30, min(95, $baseConfidence - $volatilityPenalty + $modelQualityBonus - $horizonPenalty));
                 
                 $predictions[] = [
                     'month' => $forecastMonth,
@@ -170,10 +151,10 @@ try {
                     'historical' => $historicalData,
                     'predictions' => $predictions,
                     'trend' => [
-                        'income_slope' => round($slopeIncome, 2),
-                        'expense_slope' => round($slopeExpense, 2),
-                        'income_trend' => $slopeIncome > 0 ? 'growth' : ($slopeIncome < 0 ? 'decline' : 'stable'),
-                        'expense_trend' => $slopeExpense > 0 ? 'growth' : ($slopeExpense < 0 ? 'decline' : 'stable')
+                        'income_slope' => round($incomeTrend['slope'], 2),
+                        'expense_slope' => round($expenseTrend['slope'], 2),
+                        'income_trend' => $incomeTrend['slope'] > 0 ? 'growth' : ($incomeTrend['slope'] < 0 ? 'decline' : 'stable'),
+                        'expense_trend' => $expenseTrend['slope'] > 0 ? 'growth' : ($expenseTrend['slope'] < 0 ? 'decline' : 'stable')
                     ]
                 ]
             ]);
@@ -188,8 +169,28 @@ try {
                 jsonResponse(['success' => false, 'error' => 'Не указан сценарий']);
             }
             
+            // Проверка прав на сценарий
+            $stmt = $pdo->prepare("SELECT id FROM scenarios WHERE id = ? AND user_id = ?");
+            $stmt->execute([$scenarioId, $_SESSION['user_id']]);
+            $scenario = $stmt->fetch();
+
+            if (!$scenario) {
+                jsonResponse(['success' => false, 'error' => 'Сценарий не найден']);
+            }
+
             $stmt = $pdo->prepare("
-                SELECT * FROM predictions 
+                SELECT
+                    id,
+                    scenario_id,
+                    DATE_FORMAT(prediction_date, '%Y-%m') as month,
+                    prediction_date,
+                    predicted_income,
+                    predicted_expense,
+                    predicted_balance,
+                    confidence_level,
+                    algorithm_used,
+                    created_at
+                FROM predictions
                 WHERE scenario_id = ?
                 ORDER BY prediction_date ASC
             ");
@@ -228,6 +229,9 @@ try {
 } catch (PDOException $e) {
     error_log("Ошибка БД: " . $e->getMessage());
     jsonResponse(['success' => false, 'error' => 'Ошибка базы данных']);
+} catch (Throwable $e) {
+    error_log("Ошибка прогнозирования: " . $e->getMessage());
+    jsonResponse(['success' => false, 'error' => 'Ошибка расчета прогноза']);
 }
 
 /**
@@ -247,4 +251,82 @@ function calculateStandardDeviation($values) {
     }
     
     return sqrt($variance / ($n - 1));
+}
+
+/**
+ * Линейная регрессия (метод наименьших квадратов)
+ */
+function calculateLinearTrend($values) {
+    $n = count($values);
+    if ($n === 0) {
+        return ['slope' => 0, 'intercept' => 0];
+    }
+
+    $sumX = array_sum(range(0, $n - 1));
+    $sumY = array_sum($values);
+    $sumXY = 0;
+    $sumX2 = 0;
+
+    foreach ($values as $i => $value) {
+        $sumXY += $i * $value;
+        $sumX2 += $i * $i;
+    }
+
+    $denominator = ($n * $sumX2 - $sumX * $sumX);
+    $slope = $denominator != 0 ? ($n * $sumXY - $sumX * $sumY) / $denominator : 0;
+    $intercept = ($sumY - $slope * $sumX) / $n;
+
+    return ['slope' => $slope, 'intercept' => $intercept];
+}
+
+/**
+ * Сезонные коэффициенты по номеру месяца (1..12)
+ */
+function buildSeasonalityMap($historicalData, $field, $average) {
+    $result = array_fill(1, 12, 1.0);
+    if ($average <= 0) {
+        return $result;
+    }
+
+    $monthBuckets = [];
+    foreach ($historicalData as $item) {
+        $monthNum = (int)date('n', strtotime($item['month'] . '-01'));
+        $monthBuckets[$monthNum][] = (float)$item[$field];
+    }
+
+    foreach ($monthBuckets as $monthNum => $values) {
+        $monthAvg = array_sum($values) / count($values);
+        $factor = $monthAvg / $average;
+
+        // Ограничиваем сезонный фактор, чтобы не было экстремальных всплесков
+        $result[$monthNum] = max(0.5, min(1.5, $factor));
+    }
+
+    return $result;
+}
+
+/**
+ * Коэффициент детерминации R² для оценки качества тренда
+ */
+function calculateTrendR2($values, $slope, $intercept) {
+    $n = count($values);
+    if ($n < 2) {
+        return 0;
+    }
+
+    $mean = array_sum($values) / $n;
+    $ssTot = 0;
+    $ssRes = 0;
+
+    foreach ($values as $i => $actual) {
+        $predicted = $intercept + $slope * $i;
+        $ssTot += pow($actual - $mean, 2);
+        $ssRes += pow($actual - $predicted, 2);
+    }
+
+    if ($ssTot <= 0) {
+        return 0;
+    }
+
+    return max(0, min(1, 1 - ($ssRes / $ssTot)));
 }
