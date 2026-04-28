@@ -4,7 +4,7 @@
  * Использует исторические данные для построения прогнозов
  */
 
-require_once '../includes/config.php';
+require_once __DIR__ . '/../includes/config.php';
 
 header('Content-Type: application/json; charset=utf-8');
 ini_set('display_errors', '0');
