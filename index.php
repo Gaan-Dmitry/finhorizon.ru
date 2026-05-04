@@ -57,8 +57,138 @@ $totalBalance = $totalIncome - $totalExpense;
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Roboto+Condensed:wght@700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Стили для заглушки на мобильных устройствах */
+        .mobile-stub-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            overflow: hidden;
+        }
+
+        .mobile-stub-overlay::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(39, 174, 96, 0.1) 0%, transparent 70%);
+            animation: pulse 8s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 0.5; }
+            50% { transform: scale(1.1); opacity: 0.8; }
+        }
+
+        .mobile-stub-content {
+            position: relative;
+            z-index: 2;
+            text-align: center;
+            max-width: 500px;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px 30px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .mobile-stub-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .mobile-stub-title {
+            font-family: 'Roboto Condensed', 'Arial Narrow', sans-serif;
+            font-size: 2rem;
+            font-weight: 700;
+            color: #ffffff;
+            margin-bottom: 15px;
+            text-shadow: 0 0 20px rgba(39, 174, 96, 0.5);
+        }
+
+        .mobile-stub-text {
+            font-size: 1.1rem;
+            color: #bdc3c7;
+            line-height: 1.6;
+            margin-bottom: 25px;
+        }
+
+        .mobile-stub-device-icon {
+            display: inline-block;
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #27AE60 0%, #2ECC71 100%);
+            border-radius: 15px;
+            margin: 20px auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+            box-shadow: 0 4px 15px rgba(39, 174, 96, 0.4);
+        }
+
+        .mobile-stub-hint {
+            font-size: 0.9rem;
+            color: #7f8c8d;
+            font-style: italic;
+        }
+
+        /* Показываем заглушку только на мобильных устройствах (меньше 1024px) */
+        @media (max-width: 1023px) {
+            .mobile-stub-overlay {
+                display: flex;
+            }
+            
+            /* Блокируем прокрутку основного контента */
+            body.mobile-stub-active {
+                overflow: hidden;
+            }
+        }
+
+        /* Скрываем основной контент на мобильных */
+        @media (max-width: 1023px) {
+            .desktop-only-content {
+                display: none !important;
+            }
+        }
+    </style>
 </head>
 <body>
+    <!-- Заглушка для мобильных устройств -->
+    <div class="mobile-stub-overlay" id="mobileStub">
+        <div class="mobile-stub-content">
+            <div class="mobile-stub-icon">📱</div>
+            <h1 class="mobile-stub-title">ФинГоризонт</h1>
+            <div class="mobile-stub-device-icon">💻</div>
+            <p class="mobile-stub-text">
+                Для комфортной работы с системой финансового планирования 
+                пожалуйста, откройте этот сайт на компьютере или ноутбуке.
+            </p>
+            <p class="mobile-stub-hint">
+                Мобильная версия находится в разработке
+            </p>
+        </div>
+    </div>
+
+    <!-- Основной контент (видим только на десктопах) -->
+    <div class="desktop-only-content">
     <!-- Хедер -->
     <header class="header">
         <div class="logo">
@@ -256,6 +386,21 @@ $totalBalance = $totalIncome - $totalExpense;
                 });
         });
         <?php endif; ?>
+    </script>
+    <script>
+        // Добавляем класс для блокировки прокрутки на мобильных
+        if (window.innerWidth < 1024) {
+            document.body.classList.add('mobile-stub-active');
+        }
+        
+        // Обновляем класс при изменении размера окна
+        window.addEventListener('resize', function() {
+            if (window.innerWidth < 1024) {
+                document.body.classList.add('mobile-stub-active');
+            } else {
+                document.body.classList.remove('mobile-stub-active');
+            }
+        });
     </script>
 </body>
 </html>

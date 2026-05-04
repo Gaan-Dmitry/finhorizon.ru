@@ -1,3 +1,48 @@
-The file name in the added files list appears to be encoded in UTF-8, likely containing Cyrillic characters. When decoded properly, it seems to represent a Markdown file related to course skeletonization or similar educational material. Since this is a standard source file (.md), no special ignoring is required.
+```
+# Compiled and build artifacts
+*.pyc
+__pycache__/
 
-(empty)
+# Dependencies
+node_modules/
+venv/
+.venv/
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Editors
+.vscode/
+.idea/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Coverage reports
+coverage/
+htmlcov/
+.coverage
+
+# Python specific
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Backup files
+*~
+*.bak
+*.old
+```
